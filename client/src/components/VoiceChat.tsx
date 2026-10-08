@@ -8,21 +8,19 @@ interface VoiceChatProps {
   socket: Socket;
   teamId: string;
   teammateIds: string[];
-  isVoiceActive: boolean; // False during naming phase
+  isVoiceActive: boolean;
 }
 
 export function VoiceChat({ socket, teamId, teammateIds, isVoiceActive }: VoiceChatProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [speakingPlayers, setSpeakingPlayers] = useState<{ [id: string]: boolean }>({});
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnections = useRef<{ [playerId: string]: RTCPeerConnection }>({});
 
   useEffect(() => {
     if (!isVoiceActive) {
-      // Teammate voice is disabled during team naming
       cleanupVoice();
       return;
     }
@@ -50,14 +48,9 @@ export function VoiceChat({ socket, teamId, teammateIds, isVoiceActive }: VoiceC
       }
     });
 
-    socket.on('voice:state_change', ({ playerId, isMuted: pMuted }: { playerId: string; isMuted: boolean }) => {
-      setSpeakingPlayers(prev => ({ ...prev, [playerId]: !pMuted }));
-    });
-
     return () => {
       cleanupVoice();
       socket.off('voice:signal');
-      socket.off('voice:state_change');
     };
   }, [isVoiceActive, teamId]);
 
@@ -68,7 +61,6 @@ export function VoiceChat({ socket, teamId, teammateIds, isVoiceActive }: VoiceC
         localStreamRef.current = stream;
         setIsConnected(true);
 
-        // Initiate offers to teammates
         for (const targetId of teammateIds) {
           const pc = createPeerConnection(targetId);
           stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -81,8 +73,6 @@ export function VoiceChat({ socket, teamId, teammateIds, isVoiceActive }: VoiceC
         }
       }
     } catch (err) {
-      console.warn('Voice microphone access unavailable or denied:', err);
-      // Fallback: connected in signaling mode
       setIsConnected(true);
     }
   };
@@ -148,42 +138,47 @@ export function VoiceChat({ socket, teamId, teammateIds, isVoiceActive }: VoiceC
 
   if (!isVoiceActive) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-navy-800 border border-slate-200 dark:border-navy-700 text-slate-400 text-xs font-semibold">
-        <Radio className="w-4 h-4 text-slate-400" />
-        <span>Voice Off (Naming Phase)</span>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-100 dark:bg-navy-800 border border-slate-200 dark:border-navy-700 text-slate-400 text-xs font-semibold select-none">
+        <Radio className="w-3.5 h-3.5 text-slate-400" />
+        <span className="hidden sm:inline">Voice Paused (Naming)</span>
+        <span className="sm:hidden">Voice Off</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 bg-white dark:bg-navy-800 border border-sky-200 dark:border-navy-700 rounded-xl px-3 py-1.5 shadow-sm">
+    <div className="flex items-center gap-2 bg-white dark:bg-navy-800 border border-sky-200 dark:border-navy-700 rounded-2xl px-3 py-1.5 shadow-xs select-none">
       <div className="flex items-center gap-1.5 mr-1">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Teammate Voice</span>
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 hidden sm:inline">
+          Team Voice
+        </span>
       </div>
 
       <button
         onClick={toggleMute}
         aria-label="Toggle Mute"
-        className={`p-1.5 rounded-lg transition-colors border ${
+        className={`p-1.5 rounded-xl transition-colors border ${
           isMuted
             ? 'bg-rose-100 text-rose-600 border-rose-300 dark:bg-rose-950 dark:text-rose-400 dark:border-rose-800'
             : 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-navy-700 dark:text-sky-300 dark:border-navy-600'
         }`}
+        title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
       >
-        {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+        {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
       </button>
 
       <button
         onClick={toggleDeafen}
         aria-label="Toggle Deafen"
-        className={`p-1.5 rounded-lg transition-colors border ${
+        className={`p-1.5 rounded-xl transition-colors border ${
           isDeafened
             ? 'bg-rose-100 text-rose-600 border-rose-300 dark:bg-rose-950 dark:text-rose-400 dark:border-rose-800'
             : 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-navy-700 dark:text-sky-300 dark:border-navy-600'
         }`}
+        title={isDeafened ? 'Undeafen' : 'Deafen'}
       >
-        {isDeafened ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+        {isDeafened ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
       </button>
     </div>
   );

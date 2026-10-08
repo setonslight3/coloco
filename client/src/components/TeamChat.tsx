@@ -46,23 +46,25 @@ export function TeamChat({ socket, myPlayerId, teamName }: TeamChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-72 w-full max-w-sm bg-white dark:bg-navy-800 border border-sky-200 dark:border-navy-700 rounded-2xl shadow-md overflow-hidden">
+    <div className="flex flex-col h-80 w-full bg-white dark:bg-navy-900 border border-sky-200/80 dark:border-navy-700 rounded-3xl shadow-md overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-2.5 bg-sky-50 dark:bg-navy-900 border-b border-sky-100 dark:border-navy-700 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+      <div className="px-4 py-3 bg-slate-50 dark:bg-navy-800/80 border-b border-slate-200 dark:border-navy-700 flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageSquare className="w-4 h-4 text-sky-600 dark:text-sky-400 flex-shrink-0" />
+          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
             {teamName} Chat
           </span>
         </div>
-        <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Private</span>
+        <span className="text-[9px] text-slate-400 uppercase tracking-widest font-black px-2 py-0.5 rounded-full bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-700">
+          Private
+        </span>
       </div>
 
-      {/* Messages Scroll */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
+      {/* Messages Scroll Area */}
+      <div className="flex-1 p-3 overflow-y-auto space-y-2.5 text-xs">
         {messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-slate-400 text-[11px] italic">
-            Coordinate strategy with teammates!
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs italic text-center p-4">
+            <span>Coordinate strategy with teammates in your private channel!</span>
           </div>
         ) : (
           messages.map((m, idx) => {
@@ -70,16 +72,16 @@ export function TeamChat({ socket, myPlayerId, teamName }: TeamChatProps) {
             return (
               <div
                 key={idx}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-full`}
               >
-                <span className="text-[10px] text-slate-400 mb-0.5 font-medium">
+                <span className="text-[10px] text-slate-400 mb-0.5 px-1 font-medium">
                   {isMe ? 'You' : m.senderName}
                 </span>
                 <div
-                  className={`px-3 py-1.5 rounded-xl max-w-[85%] break-words ${
+                  className={`px-3.5 py-2 rounded-2xl max-w-[88%] break-words whitespace-pre-wrap leading-relaxed ${
                     isMe
-                      ? 'bg-sky-500 text-white rounded-tr-none'
-                      : 'bg-slate-100 dark:bg-navy-700 text-slate-800 dark:text-slate-200 rounded-tl-none'
+                      ? 'bg-sky-500 text-white rounded-tr-xs shadow-xs'
+                      : 'bg-slate-100 dark:bg-navy-800 text-slate-800 dark:text-slate-200 rounded-tl-xs shadow-xs'
                   }`}
                 >
                   {m.text}
@@ -91,19 +93,20 @@ export function TeamChat({ socket, myPlayerId, teamName }: TeamChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <form onSubmit={sendMessage} className="p-2 border-t border-sky-100 dark:border-navy-700 flex gap-2">
+      {/* Input Field */}
+      <form onSubmit={sendMessage} className="p-2.5 border-t border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 flex gap-2">
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Message teammates..."
           maxLength={150}
-          className="flex-1 px-3 py-1.5 text-xs rounded-xl border border-sky-200 dark:border-navy-600 bg-sky-50/50 dark:bg-navy-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+          className="flex-1 px-3.5 py-2 text-xs rounded-xl border border-sky-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
         <button
           type="submit"
-          className="p-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white shadow-sm"
+          disabled={!inputText.trim()}
+          className="p-2 rounded-xl bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white shadow-xs transition-transform active:scale-95"
         >
           <Send className="w-4 h-4" />
         </button>
