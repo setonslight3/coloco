@@ -3,6 +3,7 @@ import { MatchManager } from '../game/matchManager.js';
 import { GeminiJudgingService } from '../services/geminiJudge.js';
 import { DatabaseService } from '../services/databaseService.js';
 import { DrawStroke, GameMode, MatchState } from '../types/index.js';
+import { generateTerritoryBoundaries } from '../game/territory.js';
 
 export function setupSocketHandlers(io: Server, matchManager: MatchManager, judgeService: GeminiJudgingService) {
   // Map socket ID to player & match info
@@ -20,20 +21,75 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       io.emit('lobby:list_updated', matchManager.getPublicLobbies());
     });
 
-    socket.on('game:join', ({ matchId, playerId }: { matchId: string; playerId: string }) => {
+    socket.on('game:join', ({ matchId, playerId, username }: { matchId: string; playerId: string; username?: string }) => {
       if (!matchId || !playerId) return;
       const match = matchManager.getMatch(matchId);
       if (!match) return;
 
-      const player = match.players[playerId];
-      const teamId = player?.teamId;
+      // 1. Ensure player exists in match.players:
+      let player = match.players[playerId];
+      if (!player) {
+        player = {
+          id: playerId,
+          username: username || `Painter_${playerId.substring(0, 4)}`,
+          isHost: match.hostId === playerId,
+          isReady: true,
+          isDone: false
+        };
+        match.players[playerId] = player;
+      }
 
+      // 2. Ensure player has a team assigned:
+      if (!player.teamId) {
+        if (match.mode === 'cooperative') {
+          if (!match.teams.coop_team) {
+            match.teams.coop_team = {
+              id: 'coop_team',
+              name: 'Co-op Canvas',
+              color: '#38bdf8',
+              playerIds: [],
+              namingContributions: {},
+              isAllDone: false,
+              strokes: []
+            };
+          }
+          player.teamId = 'coop_team';
+          if (!match.teams.coop_team.playerIds.includes(playerId)) {
+            match.teams.coop_team.playerIds.push(playerId);
+          }
+          player.territoryIndex = match.teams.coop_team.playerIds.indexOf(playerId);
+        } else {
+          // Competitive: assign to smaller team
+          const team1 = match.teams.team1;
+          const team2 = match.teams.team2;
+          const t1Count = team1?.playerIds.length || 0;
+          const t2Count = team2?.playerIds.length || 0;
+          const chosenTeamId = t2Count < t1Count && team2 ? 'team2' : 'team1';
+          player.teamId = chosenTeamId;
+          if (match.teams[chosenTeamId]) {
+            if (!match.teams[chosenTeamId].playerIds.includes(playerId)) {
+              match.teams[chosenTeamId].playerIds.push(playerId);
+            }
+            player.territoryIndex = match.teams[chosenTeamId].playerIds.indexOf(playerId);
+          }
+        }
+      }
+
+      // 3. Ensure territory boundaries exist
+      if (!match.territories || match.territories.length === 0) {
+        const totalInTeam = player.teamId && match.teams[player.teamId] ? match.teams[player.teamId].playerIds.length : 2;
+        match.territories = generateTerritoryBoundaries(Math.max(2, totalInTeam));
+      }
+
+      const teamId = player.teamId;
       socketPlayerMap.set(socket.id, { playerId, matchId, teamId });
       socket.join(matchId);
       if (teamId) {
         socket.join(`${matchId}:${teamId}`);
       }
+
       socket.emit('match:state', match);
+      io.to(matchId).emit('match:state', match);
     });
 
     socket.on('lobby:get_public', () => {
@@ -312,7 +368,7 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
     // -------------------------------------------------------------
     // WEBRTC PRIVATE TEAM VOICE SIGNALING
     // -------------------------------------------------------------
-    socket.on('voice:signal', ({ targetPlayerId, signal, matchId }: { targetPlayerId: string; signal: any; matchId?: string }) => {
+    socket.on('voice:signal', ({ targetPlayerId, signal, matchId, senderPlayerId: clientSenderId }: { targetPlayerId: string; signal: any; matchId?: string; senderPlayerId?: string }) => {
       const senderInfo = socketPlayerMap.get(socket.id);
       const effectiveMatchId = matchId || senderInfo?.matchId;
       if (!effectiveMatchId) return;
@@ -320,25 +376,25 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       const match = matchManager.getMatch(effectiveMatchId);
       if (!match || match.phase === 'naming' || match.phase === 'lobby') return;
 
-      const senderPlayer = senderInfo ? match.players[senderInfo.playerId] : null;
-      const senderTeamId = senderInfo?.teamId || senderPlayer?.teamId;
-      const senderPlayerId = senderInfo?.playerId || senderPlayer?.id;
-      if (!senderTeamId || !senderPlayerId) return;
+      const senderPlayerId = clientSenderId || senderInfo?.playerId;
+      if (!senderPlayerId) return;
 
-      // Find target socket
+      const senderPlayer = match.players[senderPlayerId];
+      const senderTeamId = senderInfo?.teamId || senderPlayer?.teamId;
+
+      // Find target socket in this match
       for (const [targetSockId, tInfo] of socketPlayerMap.entries()) {
-        const targetPlayer = match.players[tInfo.playerId];
-        const targetTeamId = tInfo.teamId || targetPlayer?.teamId;
-        if (
-          tInfo.matchId === effectiveMatchId &&
-          targetTeamId === senderTeamId &&
-          tInfo.playerId === targetPlayerId
-        ) {
-          io.to(targetSockId).emit('voice:signal', {
-            senderPlayerId,
-            signal
-          });
-          break;
+        if (tInfo.matchId === effectiveMatchId && tInfo.playerId === targetPlayerId) {
+          const targetPlayer = match.players[tInfo.playerId];
+          const targetTeamId = tInfo.teamId || targetPlayer?.teamId;
+          // In cooperative mode or matching team, forward signal
+          if (match.mode === 'cooperative' || !senderTeamId || !targetTeamId || senderTeamId === targetTeamId) {
+            io.to(targetSockId).emit('voice:signal', {
+              senderPlayerId,
+              signal
+            });
+            break;
+          }
         }
       }
     });

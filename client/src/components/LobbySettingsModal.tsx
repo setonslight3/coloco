@@ -272,17 +272,15 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
   const effectiveMode: GameMode = category === 'cooperative' ? 'cooperative' : subStyle;
 
   // Challenges matching current selection
-  const filteredChallenges = category === 'cooperative'
-    ? CLIENT_CHALLENGES.filter(c => c.mode === 'cooperative' || c.mode === subStyle)
-    : CLIENT_CHALLENGES.filter(c => c.mode === subStyle);
+  const filteredChallenges = CLIENT_CHALLENGES.filter(c => c.mode === subStyle);
 
   const handleCategoryChange = (newCat: 'cooperative' | 'competitive') => {
     setCategory(newCat);
     if (newCat === 'cooperative') {
       setMaxPlayers(2);
-      const coopChal = CLIENT_CHALLENGES.find(c => c.mode === 'cooperative') || CLIENT_CHALLENGES[0];
-      setChallengeId(coopChal.id);
-      setDurationSeconds(coopChal.durationSeconds);
+      const matchChal = CLIENT_CHALLENGES.find(c => c.mode === subStyle) || CLIENT_CHALLENGES[0];
+      setChallengeId(matchChal.id);
+      setDurationSeconds(matchChal.durationSeconds);
     } else {
       if (maxPlayers <= 2) setMaxPlayers(4);
       const subChal = CLIENT_CHALLENGES.find(c => c.mode === subStyle) || CLIENT_CHALLENGES[0];

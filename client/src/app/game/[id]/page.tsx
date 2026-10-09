@@ -50,15 +50,16 @@ export default function GamePage() {
 
   useEffect(() => {
     const pid = sessionStorage.getItem('coloco_player_id') || '';
+    const uname = sessionStorage.getItem('coloco_username') || '';
     setPlayerId(pid);
 
     if (matchId && pid) {
-      socket.emit('game:join', { matchId, playerId: pid });
+      socket.emit('game:join', { matchId, playerId: pid, username: uname });
     }
 
     const onConnect = () => {
       if (matchId && pid) {
-        socket.emit('game:join', { matchId, playerId: pid });
+        socket.emit('game:join', { matchId, playerId: pid, username: uname });
       }
     };
     socket.on('connect', onConnect);
@@ -188,8 +189,27 @@ export default function GamePage() {
     );
   }
 
-  const myPlayer = match.players[playerId];
-  const myTeam = myPlayer?.teamId ? match.teams[myPlayer.teamId] : null;
+  let myPlayer = match.players[playerId];
+  if (!myPlayer) {
+    const pList = Object.values(match.players);
+    if (pList.length > 0) {
+      myPlayer = pList.find((p) => p.id === playerId) || pList[0];
+    }
+  }
+
+  let myTeam = myPlayer?.teamId ? match.teams[myPlayer.teamId] : null;
+  if (!myTeam) {
+    for (const t of Object.values(match.teams)) {
+      if (myPlayer && t.playerIds.includes(myPlayer.id)) {
+        myTeam = t;
+        break;
+      }
+    }
+    if (!myTeam) {
+      myTeam = Object.values(match.teams)[0] || null;
+    }
+  }
+
   const isMyLocked = myPlayer?.isDone || match.phase === 'revealing' || match.phase === 'verdict';
 
   const handleDrawStroke = (stroke: Omit<DrawStroke, 'id' | 'sequence'>) => {
@@ -406,9 +426,9 @@ export default function GamePage() {
               <Users className="w-3.5 h-3.5" /> Teammates Status
             </span>
             <div className="space-y-2">
-              {myTeam?.playerIds.map((pid) => {
+              {(myTeam?.playerIds && myTeam.playerIds.length > 0 ? myTeam.playerIds : Object.keys(match.players)).map((pid) => {
                 const p = match.players[pid];
-                const isMe = pid === playerId;
+                const isMe = pid === playerId || (myPlayer && pid === myPlayer.id);
                 const pVoice = isMe ? myVoiceState : peerVoiceStates[pid];
                 const isMuted = Boolean(pVoice?.isMuted);
                 const isDeafened = Boolean(pVoice?.isDeafened);
@@ -425,54 +445,48 @@ export default function GamePage() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {/* Interactive Mute / Deafen Controls directly next to Player Names */}
-                      <div className="flex items-center gap-1 bg-white dark:bg-navy-700 px-1.5 py-0.5 rounded-xl border border-slate-200 dark:border-navy-600 shadow-2xs">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isMe) {
-                              setExternalMuteToggleCount((c) => c + 1);
-                            } else {
-                              // Local mute toggle for remote peer
-                              setPeerVoiceStates((prev) => ({
-                                ...prev,
-                                [pid]: { ...prev[pid], isMuted: !isMuted }
-                              }));
-                            }
-                          }}
-                          className={`p-1 rounded-lg transition-colors ${
-                            isMuted
-                              ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50'
-                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                          }`}
-                          title={isMe ? (isMuted ? 'Unmute Mic' : 'Mute Mic') : (isMuted ? 'Unmute Player for You' : 'Mute Player for You')}
-                        >
-                          {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-                        </button>
+                      {/* Only player can mute/deafen themselves; teammate shows live mic status indicator */}
+                      {isMe ? (
+                        <div className="flex items-center gap-1 bg-white dark:bg-navy-700 px-1.5 py-0.5 rounded-xl border border-slate-200 dark:border-navy-600 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => setExternalMuteToggleCount((c) => c + 1)}
+                            className={`p-1 rounded-lg transition-colors ${
+                              isMuted
+                                ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50'
+                                : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                            }`}
+                            title={isMuted ? 'Unmute My Mic' : 'Mute My Mic'}
+                          >
+                            {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isMe) {
-                              setExternalDeafenToggleCount((c) => c + 1);
-                            } else {
-                              // Local deafen toggle for remote peer
-                              setPeerVoiceStates((prev) => ({
-                                ...prev,
-                                [pid]: { ...prev[pid], isDeafened: !isDeafened, isMuted: !isDeafened }
-                              }));
-                            }
-                          }}
-                          className={`p-1 rounded-lg transition-colors ${
-                            isDeafened
-                              ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50'
-                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                          }`}
-                          title={isMe ? (isDeafened ? 'Undeafen' : 'Deafen') : (isDeafened ? 'Undeafen Player' : 'Deafen Player')}
-                        >
-                          {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => setExternalDeafenToggleCount((c) => c + 1)}
+                            className={`p-1 rounded-lg transition-colors ${
+                              isDeafened
+                                ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50'
+                                : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                            }`}
+                            title={isDeafened ? 'Undeafen Audio' : 'Deafen Audio'}
+                          >
+                            {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          {isMuted ? (
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-200 dark:border-rose-900/40">
+                              <MicOff className="w-2.5 h-2.5" /> Muted
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-900/40">
+                              <Mic className="w-2.5 h-2.5 animate-pulse text-emerald-500" /> Active
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${

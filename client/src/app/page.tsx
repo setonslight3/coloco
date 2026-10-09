@@ -147,15 +147,9 @@ export default function Home() {
     if (!username.trim() || !playerId) return;
 
     let targetChallengeId: string;
-    if (mainCategory === 'cooperative') {
-      if (subArtStyle === 'coloring') targetChallengeId = 'ch-coop-harmony';
-      else if (subArtStyle === 'drawing') targetChallengeId = 'ch-coop-underwater';
-      else targetChallengeId = 'ch-coop-solarsystem';
-    } else {
-      if (subArtStyle === 'coloring') targetChallengeId = 'ch-coloring-owl';
-      else if (subArtStyle === 'drawing') targetChallengeId = 'ch-drawing-lighthouse';
-      else targetChallengeId = 'ch-freestyle-retro-future';
-    }
+    if (subArtStyle === 'coloring') targetChallengeId = 'ch-coloring-airplane';
+    else if (subArtStyle === 'drawing') targetChallengeId = 'ch-drawing-apple';
+    else targetChallengeId = 'ch-freestyle-retro-future';
 
     socket.emit('lobby:create', {
       playerId,

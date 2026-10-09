@@ -29,16 +29,20 @@ interface CanvasProps {
   teamColor: string;
 }
 
-const DEFAULT_COLORING_LINE_ART = `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
-  <path d="M 500 150 C 350 150 250 300 250 600 C 250 800 350 900 500 900 C 650 900 750 800 750 600 C 750 300 650 150 500 150 Z" />
-  <circle cx="400" cy="400" r="80" stroke-width="8" />
-  <circle cx="600" cy="400" r="80" stroke-width="8" />
-  <circle cx="400" cy="400" r="30" fill="currentColor" />
-  <circle cx="600" cy="400" r="30" fill="currentColor" />
-  <polygon points="500,480 470,550 530,550" />
-  <path d="M 300 650 Q 500 750 700 650" />
-  <path d="M 350 700 Q 500 800 650 700" />
-  <circle cx="500" cy="500" r="400" stroke-dasharray="20 15" stroke-width="3" />
+const DEFAULT_COLORING_LINE_ART = `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M 180 500 C 180 440 260 410 450 420 L 720 430 C 820 430 900 470 920 500 C 900 530 820 570 720 570 L 450 580 C 260 590 180 560 180 500 Z" />
+  <ellipse cx="840" cy="485" rx="35" ry="20" stroke-width="6" />
+  <circle cx="720" cy="485" r="14" stroke-width="5" />
+  <circle cx="650" cy="485" r="14" stroke-width="5" />
+  <circle cx="580" cy="485" r="14" stroke-width="5" />
+  <circle cx="510" cy="485" r="14" stroke-width="5" />
+  <circle cx="440" cy="485" r="14" stroke-width="5" />
+  <polygon points="560,430 450,150 370,160 440,430" stroke-width="8" />
+  <polygon points="560,570 450,850 370,840 440,570" stroke-width="8" />
+  <polygon points="280,430 200,240 140,240 190,450" stroke-width="8" />
+  <polygon points="260,570 210,680 160,680 190,560" stroke-width="7" />
+  <path d="M 120 780 C 140 730 220 730 250 770 C 290 750 360 780 350 830 C 350 860 110 860 120 780 Z" stroke-width="6" stroke-dasharray="16 10" />
+  <path d="M 680 230 C 700 180 770 180 800 220 C 840 200 900 230 890 270 C 890 300 670 300 680 230 Z" stroke-width="6" stroke-dasharray="16 10" />
 </svg>`;
 
 export function Canvas({
@@ -566,7 +570,10 @@ export function Canvas({
     setIsClearConfirmOpen(false);
   };
 
-  const hasColoringLineArt = challenge.mode === 'coloring' && Boolean(challenge.templateLineArtSvg || DEFAULT_COLORING_LINE_ART);
+  const hasColoringLineArt =
+    (challenge.mode === 'coloring' ||
+      (challenge.mode !== 'drawing' && challenge.mode !== 'freestyle' && Boolean(challenge.templateLineArtSvg))) &&
+    Boolean(challenge.templateLineArtSvg || DEFAULT_COLORING_LINE_ART);
   const lineArtHtml = challenge.templateLineArtSvg || DEFAULT_COLORING_LINE_ART;
 
   return (
@@ -661,7 +668,7 @@ export function Canvas({
         {/* Template Line Art (Crisp, High-Contrast Coloring Mode Artwork) */}
         {hasColoringLineArt && (
           <div
-            className="absolute inset-0 pointer-events-none opacity-90 text-slate-900 z-10 p-3 sm:p-5 flex items-center justify-center select-none"
+            className="absolute inset-0 pointer-events-none opacity-90 text-slate-900 dark:text-slate-900 z-10 p-3 sm:p-5 flex items-center justify-center select-none [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-full [&>svg]:max-h-full"
             dangerouslySetInnerHTML={{ __html: lineArtHtml }}
           />
         )}
@@ -670,15 +677,16 @@ export function Canvas({
         {challenge.mode === 'drawing' && challenge.referenceImageUrl && showReference && (
           <div
             className={`absolute top-3 right-3 z-30 bg-white/95 dark:bg-navy-900/95 backdrop-blur-md rounded-2xl overflow-hidden shadow-xl border-2 border-white dark:border-navy-700 transition-all duration-200 ${
-              isReferenceMinimized ? 'w-24 h-10' : 'w-36 sm:w-44 aspect-square'
+              isReferenceMinimized ? 'w-28 h-10' : 'w-36 sm:w-44 aspect-square'
             }`}
           >
-            <div className="flex items-center justify-between px-2 py-1 bg-slate-100 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-              <span>Reference</span>
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-100 dark:bg-navy-800 border-b border-slate-200 dark:border-navy-700 text-[10px] font-bold text-slate-700 dark:text-slate-200">
+              <span className="truncate max-w-[90px]">{challenge.title}</span>
               <button
                 type="button"
                 onClick={() => setIsReferenceMinimized(!isReferenceMinimized)}
                 className="hover:text-sky-500 p-0.5"
+                title={isReferenceMinimized ? 'Expand Guide' : 'Minimize Guide'}
               >
                 {isReferenceMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
               </button>
@@ -686,7 +694,7 @@ export function Canvas({
             {!isReferenceMinimized && (
               <img
                 src={challenge.referenceImageUrl}
-                alt="Drawing Reference"
+                alt={challenge.title}
                 className="w-full h-full object-cover"
               />
             )}

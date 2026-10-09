@@ -56,6 +56,18 @@ export function VoiceChat({
 
     startVoiceSession();
 
+    // Mobile audio unlock on user interaction
+    const unlockAudio = () => {
+      Object.values(remoteAudiosRef.current).forEach((audio) => {
+        if (audio && audio.paused && !audio.muted) {
+          audio.play().catch(() => {});
+        }
+      });
+    };
+    window.addEventListener('pointerdown', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+    window.addEventListener('click', unlockAudio);
+
     const handleSignal = async ({ senderPlayerId, signal }: { senderPlayerId: string; signal: any }) => {
       try {
         let pc = peerConnections.current[senderPlayerId];
@@ -82,6 +94,7 @@ export function VoiceChat({
             await pc.setLocalDescription(answer);
             socket.emit('voice:signal', {
               matchId,
+              senderPlayerId: myPlayerId,
               targetPlayerId: senderPlayerId,
               signal: { sdp: pc.localDescription }
             });
@@ -106,12 +119,46 @@ export function VoiceChat({
     return () => {
       cleanupVoice();
       socket.off('voice:signal', handleSignal);
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
     };
-  }, [isVoiceActive, teamId, myPlayerId, teammateIds.join(',')]);
+  }, [isVoiceActive, teamId, myPlayerId]);
+
+  // Connect to new teammates without tearing down local mic stream
+  useEffect(() => {
+    if (!isVoiceActive || !localStreamRef.current) return;
+
+    teammateIds.forEach(async (targetId) => {
+      if (!targetId || targetId === myPlayerId || peerConnections.current[targetId]) return;
+
+      const pc = createPeerConnection(targetId);
+      const isInitiator = myPlayerId < targetId;
+      if (isInitiator) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('voice:signal', {
+            matchId,
+            senderPlayerId: myPlayerId,
+            targetPlayerId: targetId,
+            signal: { sdp: pc.localDescription }
+          });
+        } catch (e) {
+          console.warn('Failed to send offer to teammate:', e);
+        }
+      }
+    });
+  }, [teammateIds.join(','), isVoiceActive, myPlayerId]);
 
   const startVoiceSession = async () => {
     setMicError(null);
     try {
+      if (localStreamRef.current) {
+        setIsConnected(true);
+        return;
+      }
+
       if (!navigator?.mediaDevices?.getUserMedia) {
         setMicError('Audio devices not supported in this browser.');
         return;
@@ -129,21 +176,18 @@ export function VoiceChat({
       localStreamRef.current = stream;
       setIsConnected(true);
 
-      // Deterministic politeness negotiation:
-      // If myPlayerId < targetId, this peer initiates the offer.
-      // If myPlayerId > targetId, this peer adds local stream and waits for the offer.
+      // Connect to teammates
       for (const targetId of teammateIds) {
         if (!targetId || targetId === myPlayerId) continue;
 
         const pc = createPeerConnection(targetId);
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
         const isInitiator = myPlayerId < targetId;
         if (isInitiator) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           socket.emit('voice:signal', {
             matchId,
+            senderPlayerId: myPlayerId,
             targetPlayerId: targetId,
             signal: { sdp: pc.localDescription }
           });
@@ -178,6 +222,7 @@ export function VoiceChat({
       if (event.candidate) {
         socket.emit('voice:signal', {
           matchId,
+          senderPlayerId: myPlayerId,
           targetPlayerId,
           signal: { candidate: event.candidate.toJSON() }
         });
