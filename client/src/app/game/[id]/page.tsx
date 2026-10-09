@@ -9,13 +9,15 @@ import { VoiceChat } from '../../../components/VoiceChat';
 import { TeamChat } from '../../../components/TeamChat';
 import { ShowdownModal } from '../../../components/ShowdownModal';
 import { VerdictView } from '../../../components/VerdictView';
+import { ReportModal } from '../../../components/ReportModal';
 import {
   Clock,
   CheckCircle2,
   Users,
   Send,
   AlertCircle,
-  Radio
+  Radio,
+  Flag
 } from 'lucide-react';
 
 export default function GamePage() {
@@ -30,6 +32,7 @@ export default function GamePage() {
   const [hasSubmittedWord, setHasSubmittedWord] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [namingTimeRemaining, setNamingTimeRemaining] = useState<number>(20);
+  const [reportingTarget, setReportingTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     const pid = sessionStorage.getItem('coloco_player_id') || '';
@@ -329,15 +332,27 @@ export default function GamePage() {
                     <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[130px]">
                       {p?.username || 'Teammate'} {isMe && '(You)'}
                     </span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${
-                        p?.isDone
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                      }`}
-                    >
-                      {p?.isDone ? 'Locked / Done' : 'Drawing'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          p?.isDone
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                        }`}
+                      >
+                        {p?.isDone ? 'Locked / Done' : 'Drawing'}
+                      </span>
+                      {!isMe && p && (
+                        <button
+                          type="button"
+                          onClick={() => setReportingTarget({ id: p.id, name: p.username })}
+                          className="p-1 text-slate-400 hover:text-rose-500 rounded transition-colors"
+                          title="Report Player"
+                        >
+                          <Flag className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -354,6 +369,16 @@ export default function GamePage() {
           )}
         </div>
       </div>
+
+      {/* Moderation & Report Modal */}
+      {reportingTarget && (
+        <ReportModal
+          isOpen={!!reportingTarget}
+          targetPlayerId={reportingTarget.id}
+          targetUsername={reportingTarget.name}
+          onClose={() => setReportingTarget(null)}
+        />
+      )}
     </div>
   );
 }

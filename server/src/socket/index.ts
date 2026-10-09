@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { MatchManager } from '../game/matchManager.js';
 import { GeminiJudgingService } from '../services/geminiJudge.js';
+import { DatabaseService } from '../services/databaseService.js';
 import { DrawStroke, GameMode, MatchState } from '../types/index.js';
 
 export function setupSocketHandlers(io: Server, matchManager: MatchManager, judgeService: GeminiJudgingService) {
@@ -100,6 +101,16 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
           const results = await judgeService.judgeMatch(m);
           m.results = results;
           io.to(m.id).emit('match:verdict', { results });
+
+          // Persist match results, stats, and audit log to Supabase (Phase 6, 7 & 8)
+          await DatabaseService.persistMatchVerdict(m, results);
+          await DatabaseService.logAudit('match_completed', m.hostId, {
+            matchId: m.id,
+            mode: m.mode,
+            challenge: m.challenge.id,
+            teamsCount: Object.keys(m.teams).length,
+            playersCount: Object.keys(m.players).length
+          });
         }
 
         io.to(m.id).emit('match:state', m);
@@ -228,6 +239,39 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
         isMuted,
         isDeafened
       });
+    });
+
+    // -------------------------------------------------------------
+    // MODERATION & REPORTS (Phase 9)
+    // -------------------------------------------------------------
+    socket.on('report:submit', async (report: { reportedPlayerId: string; reason: string; details?: string }) => {
+      const info = socketPlayerMap.get(socket.id);
+      const reporterId = info?.playerId || 'anonymous';
+      const success = await DatabaseService.submitReport({
+        reporterId,
+        reportedPlayerId: report.reportedPlayerId,
+        matchId: info?.matchId,
+        reason: report.reason,
+        details: report.details
+      });
+      socket.emit('report:result', { success });
+      await DatabaseService.logAudit('report_filed', reporterId, {
+        reported: report.reportedPlayerId,
+        reason: report.reason
+      });
+    });
+
+    // -------------------------------------------------------------
+    // LEADERBOARD & STATS (Phase 8)
+    // -------------------------------------------------------------
+    socket.on('stats:get_leaderboard', async () => {
+      const leaderboard = await DatabaseService.getLeaderboard();
+      socket.emit('stats:leaderboard', { leaderboard });
+    });
+
+    socket.on('stats:get_history', async ({ playerId }: { playerId: string }) => {
+      const history = await DatabaseService.getPlayerHistory(playerId);
+      socket.emit('stats:history', { history });
     });
 
     // -------------------------------------------------------------
