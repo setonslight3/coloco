@@ -45,6 +45,7 @@ export function Canvas({
   const [isReferenceMinimized, setIsReferenceMinimized] = useState(false);
   const [showTerritoryOverlay, setShowTerritoryOverlay] = useState(true);
   const [boundaryWarning, setBoundaryWarning] = useState<string | null>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Curated artist palette
   const palette = [
@@ -105,7 +106,7 @@ export function Canvas({
       const steps = 60;
       for (let i = 0; i <= steps; i++) {
         const y = (i / steps) * 1000;
-        const x = 500 + 45 * Math.sin((y / 1000) * 2 * Math.PI * 2);
+        const x = 500 + 45 * Math.sin(((y + 80) / 1000) * 2 * Math.PI * 2);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -123,7 +124,7 @@ export function Canvas({
         ctx.moveTo(1000, 0);
         for (let i = 0; i <= steps; i++) {
           const y = (i / steps) * 1000;
-          const x = 500 + 45 * Math.sin((y / 1000) * 2 * Math.PI * 2);
+          const x = 500 + 45 * Math.sin(((y + 80) / 1000) * 2 * Math.PI * 2);
           ctx.lineTo(x, y);
         }
         ctx.lineTo(1000, 1000);
@@ -133,7 +134,7 @@ export function Canvas({
         ctx.moveTo(0, 0);
         for (let i = 0; i <= steps; i++) {
           const y = (i / steps) * 1000;
-          const x = 500 + 45 * Math.sin((y / 1000) * 2 * Math.PI * 2);
+          const x = 500 + 45 * Math.sin(((y + 80) / 1000) * 2 * Math.PI * 2);
           ctx.lineTo(x, y);
         }
         ctx.lineTo(0, 1000);
@@ -215,10 +216,49 @@ export function Canvas({
     return { x: Math.max(0, Math.min(1000, x)), y: Math.max(0, Math.min(1000, y)) };
   };
 
+  // Boundary checker on client
+  const isPointInMyTerritory = (pt: DrawPoint): boolean => {
+    const total = territories.length || 2;
+    if (total <= 1) return true;
+
+    if (total === 2) {
+      const dividerX = 500 + 45 * Math.sin(((pt.y + 80) / 1000) * 2 * Math.PI * 2);
+      if (myTerritoryIndex === 0) return pt.x <= dividerX;
+      if (myTerritoryIndex === 1) return pt.x > dividerX;
+      return false;
+    }
+
+    if (total === 3) {
+      const div1 = 333 + 35 * Math.sin(((pt.y + 40) / 1000) * 2 * Math.PI * 2);
+      const div2 = 667 + 35 * Math.sin(((pt.y + 180) / 1000) * 2 * Math.PI * 2);
+      if (myTerritoryIndex === 0) return pt.x <= div1;
+      if (myTerritoryIndex === 1) return pt.x > div1 && pt.x <= div2;
+      if (myTerritoryIndex === 2) return pt.x > div2;
+      return false;
+    }
+
+    // 4 quadrants
+    const midX = 500 + 35 * Math.sin(((pt.y + 50) / 1000) * 1.5 * Math.PI * 2);
+    const midY = 500 + 35 * Math.cos(((pt.x + 70) / 1000) * 1.5 * Math.PI * 2);
+    const isLeft = pt.x <= midX;
+    const isTop = pt.y <= midY;
+    if (myTerritoryIndex === 0) return isLeft && isTop;
+    if (myTerritoryIndex === 1) return !isLeft && isTop;
+    if (myTerritoryIndex === 2) return isLeft && !isTop;
+    if (myTerritoryIndex === 3) return !isLeft && !isTop;
+    return true;
+  };
+
   const handlePointerDown = (e: any) => {
     if (isLocked) return;
     const pt = getCanvasPoint(e);
     if (!pt) return;
+
+    if (!isPointInMyTerritory(pt)) {
+      setBoundaryWarning('Blocked: You cannot draw in your teammate or opponent territory!');
+      setTimeout(() => setBoundaryWarning(null), 2500);
+      return;
+    }
 
     setIsDrawing(true);
     setCurrentPoints([pt]);
@@ -228,6 +268,13 @@ export function Canvas({
     if (!isDrawing || isLocked) return;
     const pt = getCanvasPoint(e);
     if (!pt) return;
+
+    if (!isPointInMyTerritory(pt)) {
+      // Stroke reached boundary - do not paint outside assigned territory
+      setBoundaryWarning('Boundary reached: Drawing stays inside your territory.');
+      setTimeout(() => setBoundaryWarning(null), 2000);
+      return;
+    }
 
     // Fast local rendering during active gesture
     const canvas = canvasRef.current;
@@ -253,13 +300,16 @@ export function Canvas({
     if (!isDrawing || isLocked) return;
     setIsDrawing(false);
 
-    if (currentPoints.length > 0) {
+    // Filter points strictly inside territory
+    const validPoints = currentPoints.filter(pt => isPointInMyTerritory(pt));
+
+    if (validPoints.length > 0) {
       onDrawStroke({
         playerId: '',
         teamId: '',
         color: isEraser ? '#ffffff' : color,
         size,
-        points: currentPoints,
+        points: validPoints,
         timestamp: Date.now()
       });
     }
@@ -302,11 +352,49 @@ export function Canvas({
           >
             {showTerritoryOverlay ? 'Hide Seams' : 'Show Seams'}
           </button>
+
+          <button
+            onClick={() => setIsFullScreen(!isFullScreen)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-sky-50 dark:bg-sky-950/60 border border-sky-300 dark:border-sky-800 text-sky-600 dark:text-sky-300 hover:bg-sky-100 transition-colors shadow-xs"
+            title={isFullScreen ? 'Exit Full Screen' : 'Full Screen Canvas'}
+          >
+            {isFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isFullScreen ? 'Minimize' : 'Full Screen'}</span>
+          </button>
         </div>
       </div>
 
       {/* Main Artboard Canvas Container */}
-      <div className="relative w-full max-w-[560px] aspect-square rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border-2 sm:border-4 border-slate-200 dark:border-navy-700 bg-white">
+      <div
+        className={`relative aspect-square overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-200 dark:border-navy-700 bg-white transition-all duration-300 ${
+          isFullScreen
+            ? 'fixed inset-2 sm:inset-6 z-50 m-auto max-h-[92vh] max-w-[92vh] w-full rounded-3xl ring-9999 ring-navy-950/80 shadow-2xl'
+            : 'w-full max-w-[560px] rounded-2xl sm:rounded-3xl'
+        }`}
+      >
+        {/* Fullscreen Floating Controls Bar */}
+        {isFullScreen && (
+          <div className="absolute top-3 right-3 z-50 flex items-center gap-2 bg-navy-950/85 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-sky-400/40 text-white shadow-xl">
+            <span className="text-[11px] font-bold text-sky-300">Full Screen</span>
+            <button
+              type="button"
+              onClick={() => setIsFullScreen(false)}
+              className="p-1 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-colors"
+              title="Exit Full Screen"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Boundary Toast Warning */}
+        {boundaryWarning && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-rose-500 text-white text-xs font-black shadow-xl animate-fadeIn flex items-center gap-2 max-w-[90%] text-center">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+            <span>{boundaryWarning}</span>
+          </div>
+        )}
+
         {/* Subtle Territory Zone Pill Indicator */}
         <div className="absolute top-3 left-3 z-20 pointer-events-none">
           <div className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/90 dark:bg-navy-900/90 backdrop-blur-md border border-sky-200 dark:border-navy-700 text-sky-600 dark:text-sky-300 shadow-sm flex items-center gap-1.5">
@@ -371,10 +459,10 @@ export function Canvas({
           ref={canvasRef}
           width={1000}
           height={1000}
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
         />
 
-        {/* Pointer Overlay Canvas */}
+        {/* Pointer Overlay Canvas with touch-none */}
         <canvas
           ref={overlayRef}
           width={1000}
@@ -385,7 +473,8 @@ export function Canvas({
           onTouchStart={handlePointerDown}
           onTouchMove={handlePointerMove}
           onTouchEnd={handlePointerUp}
-          className={`absolute inset-0 w-full h-full object-contain ${
+          style={{ touchAction: 'none' }}
+          className={`absolute inset-0 w-full h-full object-contain select-none ${
             isLocked ? 'cursor-not-allowed' : 'cursor-crosshair'
           }`}
         />

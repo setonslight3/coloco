@@ -119,6 +119,29 @@ export const BUILT_IN_CHALLENGES: Challenge[] = [
     title: 'Aetherial Cloud Fortress',
     description: 'A floating brass citadel propelled by giant rotating cogs, propellers, and billowing steam.',
     durationSeconds: 210
+  },
+
+  // --- COOPERATIVE (FRIENDLY / NON-COMPETITIVE) CHALLENGES ---
+  {
+    id: 'ch-coop-harmony',
+    mode: 'cooperative',
+    title: 'Enchanted Forest Sanctuary',
+    description: 'Paint together on one canvas in friendly harmony! Add mystical trees, gentle woodland creatures, and glowing fireflies.',
+    durationSeconds: 180
+  },
+  {
+    id: 'ch-coop-underwater',
+    mode: 'cooperative',
+    title: 'Coral Reef Harmony',
+    description: 'A relaxed cooperative expedition to paint a vibrant underwater coral paradise together.',
+    durationSeconds: 180
+  },
+  {
+    id: 'ch-coop-solarsystem',
+    mode: 'cooperative',
+    title: 'Cosmic Constellation Journey',
+    description: 'Cooperate to paint distant starfields, orbiting planets, and swirling nebulae with your friend.',
+    durationSeconds: 210
   }
 ];
 
@@ -192,6 +215,34 @@ export class MatchManager {
     return match;
   }
 
+  leaveMatch(matchId: string, playerId: string): { match: MatchState | null; deleted: boolean } {
+    const match = this.matches.get(matchId);
+    if (!match) return { match: null, deleted: false };
+
+    delete match.players[playerId];
+
+    const remainingPlayerIds = Object.keys(match.players);
+    if (remainingPlayerIds.length === 0) {
+      if (this.timers.has(matchId)) {
+        clearInterval(this.timers.get(matchId)!);
+        this.timers.delete(matchId);
+      }
+      this.matches.delete(matchId);
+      return { match: null, deleted: true };
+    }
+
+    // If host left, pass host crown to next remaining player
+    if (match.hostId === playerId) {
+      const newHostId = remainingPlayerIds[0];
+      match.hostId = newHostId;
+      if (match.players[newHostId]) {
+        match.players[newHostId].isHost = true;
+      }
+    }
+
+    return { match, deleted: false };
+  }
+
   setPlayerReady(matchId: string, playerId: string, isReady: boolean): MatchState | null {
     const match = this.matches.get(matchId);
     if (!match || match.phase !== 'lobby') return null;
@@ -259,40 +310,62 @@ export class MatchManager {
     // Shuffle players randomly (Fisher-Yates)
     const shuffled = [...playerList].sort(() => Math.random() - 0.5);
 
-    // Form 2 equal teams (or more if player count > 4)
-    const teamCount = 2;
-    match.teams = {
-      team1: {
-        id: 'team1',
-        name: 'Team 1',
-        color: '#38bdf8', // Light blue
-        playerIds: [],
-        namingContributions: {},
-        isAllDone: false,
-        strokes: []
-      },
-      team2: {
-        id: 'team2',
-        name: 'Team 2',
-        color: '#fb7185', // Rose / Red
-        playerIds: [],
-        namingContributions: {},
-        isAllDone: false,
-        strokes: []
-      }
-    };
+    if (match.mode === 'cooperative') {
+      // COOPERATIVE FRIENDLY MODE: All players are on 1 united team painting on the same canvas!
+      match.teams = {
+        coop_team: {
+          id: 'coop_team',
+          name: 'Co-op Canvas',
+          color: '#38bdf8',
+          playerIds: [],
+          namingContributions: {},
+          isAllDone: false,
+          strokes: []
+        }
+      };
 
-    shuffled.forEach((p, idx) => {
-      const targetTeamId = idx % 2 === 0 ? 'team1' : 'team2';
-      match.teams[targetTeamId].playerIds.push(p.id);
-      match.players[p.id].teamId = targetTeamId;
-      // Index within team determines territory
-      match.players[p.id].territoryIndex = match.teams[targetTeamId].playerIds.length - 1;
-    });
+      shuffled.forEach((p, idx) => {
+        match.teams.coop_team.playerIds.push(p.id);
+        match.players[p.id].teamId = 'coop_team';
+        match.players[p.id].territoryIndex = idx;
+      });
 
-    // Calculate max players per team to determine territory partition
-    const maxPerTeam = Math.max(...Object.values(match.teams).map(t => t.playerIds.length));
-    match.territories = generateTerritoryBoundaries(maxPerTeam);
+      match.territories = generateTerritoryBoundaries(shuffled.length);
+    } else {
+      // COMPETITIVE MODES: 2 balanced opponent teams
+      match.teams = {
+        team1: {
+          id: 'team1',
+          name: 'Team 1',
+          color: '#38bdf8', // Light blue
+          playerIds: [],
+          namingContributions: {},
+          isAllDone: false,
+          strokes: []
+        },
+        team2: {
+          id: 'team2',
+          name: 'Team 2',
+          color: '#fb7185', // Rose / Red
+          playerIds: [],
+          namingContributions: {},
+          isAllDone: false,
+          strokes: []
+        }
+      };
+
+      shuffled.forEach((p, idx) => {
+        const targetTeamId = idx % 2 === 0 ? 'team1' : 'team2';
+        match.teams[targetTeamId].playerIds.push(p.id);
+        match.players[p.id].teamId = targetTeamId;
+        // Index within team determines territory
+        match.players[p.id].territoryIndex = match.teams[targetTeamId].playerIds.length - 1;
+      });
+
+      // Calculate max players per team to determine territory partition
+      const maxPerTeam = Math.max(...Object.values(match.teams).map(t => t.playerIds.length));
+      match.territories = generateTerritoryBoundaries(maxPerTeam);
+    }
 
     // Transition to NAMING phase
     match.phase = 'naming';

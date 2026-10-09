@@ -1,4 +1,4 @@
-export type GameMode = 'coloring' | 'drawing' | 'freestyle';
+export type GameMode = 'coloring' | 'drawing' | 'freestyle' | 'cooperative';
 
 export type MatchPhase =
   | 'lobby'

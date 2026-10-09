@@ -17,7 +17,9 @@ import {
   Send,
   AlertCircle,
   Radio,
-  Flag
+  Flag,
+  Home,
+  LogOut
 } from 'lucide-react';
 
 export default function GamePage() {
@@ -163,6 +165,11 @@ export default function GamePage() {
     router.push('/');
   };
 
+  const handleLeaveToMainMenu = () => {
+    socket.emit('lobby:leave');
+    router.push('/');
+  };
+
   const formatTimer = (sec: number) => {
     const m = Math.floor(Math.max(0, sec) / 60);
     const s = Math.max(0, sec) % 60;
@@ -292,6 +299,15 @@ export default function GamePage() {
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>{myPlayer?.isDone ? 'Territory Done' : 'Mark Done'}</span>
+          </button>
+
+          <button
+            onClick={handleLeaveToMainMenu}
+            className="p-2 sm:px-3 sm:py-2.5 rounded-2xl border border-slate-200 dark:border-navy-700 bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:text-rose-500 hover:border-rose-300 transition-colors flex items-center gap-1.5 font-bold text-xs"
+            title="Leave Match & Return to Home"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Leave</span>
           </button>
         </div>
       </div>

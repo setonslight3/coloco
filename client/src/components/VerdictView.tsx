@@ -35,10 +35,12 @@ export function VerdictView({ match, onRematch }: VerdictViewProps) {
           <Trophy className="w-10 h-10 sm:w-12 sm:h-12 animate-bounce" />
         </div>
         <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-          Final Verdict & AI Scoring
+          {match.mode === 'cooperative' ? 'Cooperative Artwork Review' : 'Final Verdict & AI Scoring'}
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-          Evaluated via server-side Gemini Rubric v2.0 (Accuracy 25%, Creativity 20%, Cooperation 20%, Completion 15%, Cohesion 10%, Efficiency 10%)
+          {match.mode === 'cooperative'
+            ? 'Friendly match evaluation! Here is how your joint masterpiece scored across AI artistic harmony and teamwork.'
+            : 'Evaluated via server-side Gemini Rubric v2.0 (Accuracy 25%, Creativity 20%, Cooperation 20%, Completion 15%, Cohesion 10%, Efficiency 10%)'}
         </p>
       </div>
 

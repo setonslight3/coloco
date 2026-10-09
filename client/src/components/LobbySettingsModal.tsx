@@ -110,6 +110,28 @@ export const CLIENT_CHALLENGES: Challenge[] = [
     title: 'Aetherial Cloud Fortress',
     description: 'A floating brass citadel propelled by giant rotating cogs, propellers, and billowing steam.',
     durationSeconds: 210
+  },
+  // COOPERATIVE
+  {
+    id: 'ch-coop-harmony',
+    mode: 'cooperative',
+    title: 'Enchanted Forest Sanctuary',
+    description: 'Paint together on one canvas in friendly harmony! Add mystical trees, gentle woodland creatures, and glowing fireflies.',
+    durationSeconds: 180
+  },
+  {
+    id: 'ch-coop-underwater',
+    mode: 'cooperative',
+    title: 'Coral Reef Harmony',
+    description: 'A relaxed cooperative expedition to paint a vibrant underwater coral paradise together.',
+    durationSeconds: 180
+  },
+  {
+    id: 'ch-coop-solarsystem',
+    mode: 'cooperative',
+    title: 'Cosmic Constellation Journey',
+    description: 'Cooperate to paint distant starfields, orbiting planets, and swirling nebulae with your friend.',
+    durationSeconds: 210
   }
 ];
 
@@ -200,11 +222,12 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
               Game Mode
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { id: 'coloring', label: 'Coloring', icon: Palette },
                 { id: 'drawing', label: 'Drawing', icon: Brush },
-                { id: 'freestyle', label: 'Freestyle', icon: Sparkles }
+                { id: 'freestyle', label: 'Freestyle', icon: Sparkles },
+                { id: 'cooperative', label: 'Co-op (Friendly)', icon: Users }
               ].map((m) => {
                 const Icon = m.icon;
                 const isSelected = mode === m.id;
@@ -213,14 +236,14 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
                     key={m.id}
                     type="button"
                     onClick={() => handleModeChange(m.id as GameMode)}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all ${
+                    className={`flex items-center justify-center gap-1.5 p-2.5 rounded-2xl border text-xs font-bold transition-all ${
                       isSelected
                         ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-300 ring-2 ring-sky-500/40 shadow-xs'
                         : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-sky-300'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{m.label}</span>
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{m.label}</span>
                   </button>
                 );
               })}

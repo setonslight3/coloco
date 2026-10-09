@@ -57,6 +57,21 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       }
     });
 
+    socket.on('lobby:leave', () => {
+      const info = socketPlayerMap.get(socket.id);
+      if (!info) return;
+
+      const { match, deleted } = matchManager.leaveMatch(info.matchId, info.playerId);
+      socket.leave(info.matchId);
+      socketPlayerMap.delete(socket.id);
+
+      socket.emit('match:left');
+
+      if (!deleted && match) {
+        io.to(match.id).emit('match:state', match);
+      }
+    });
+
     socket.on('lobby:update_settings', (settings: any) => {
       const info = socketPlayerMap.get(socket.id);
       if (!info) return;

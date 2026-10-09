@@ -49,25 +49,42 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
       email,
       password,
       options: {
-        data: { username: username.trim() || email.split('@')[0] },
-        emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}` : 'https://coloco-game.vercel.app'
+        data: { username: username.trim() || email.split('@')[0] }
       }
     });
 
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setMessage({ text: error.message, type: 'error' });
-    } else {
+      return;
+    }
+
+    if (data.user) {
       // Upsert profile in public.profiles table
-      if (data.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          username: username.trim() || email.split('@')[0]
-        });
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        username: username.trim() || email.split('@')[0]
+      });
+
+      // Auto-sign in immediately
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      setLoading(false);
+      if (!signInError && signInData.user) {
+        setMessage({ text: 'Account created! Welcome to ColoCo!', type: 'success' });
+        onAuthSuccess(signInData.user);
+        setTimeout(onClose, 900);
+      } else {
+        setMessage({ text: 'Account registered! Please sign in with your password to continue.', type: 'success' });
+        setTab('login');
       }
-      setMessage({ text: 'Account created! Please check your email for confirmation.', type: 'success' });
-      onAuthSuccess(data.user);
-      setTimeout(onClose, 1500);
+    } else {
+      setLoading(false);
+      setMessage({ text: 'Account registered! Please sign in with your credentials.', type: 'success' });
+      setTab('login');
     }
   };
 

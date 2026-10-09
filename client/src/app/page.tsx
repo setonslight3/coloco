@@ -16,9 +16,10 @@ import {
   ShieldCheck,
   Dices,
   Crown,
-  CheckCircle2,
   Clock,
-  Settings
+  Settings,
+  LogOut,
+  Heart
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo';
 import { LobbySettingsModal } from '../components/LobbySettingsModal';
@@ -72,14 +73,25 @@ export default function Home() {
       setTimeout(() => setErrorMessage(null), 4000);
     };
 
+    const handleMatchLeft = () => {
+      setActiveMatch(null);
+    };
+
     socket.on('match:state', handleMatchState);
+    socket.on('match:left', handleMatchLeft);
     socket.on('error:message', handleError);
 
     return () => {
       socket.off('match:state', handleMatchState);
+      socket.off('match:left', handleMatchLeft);
       socket.off('error:message', handleError);
     };
   }, [router, socket]);
+
+  const handleLeaveLobby = () => {
+    socket.emit('lobby:leave');
+    setActiveMatch(null);
+  };
 
   const handleRandomizeName = () => {
     const randomBase = PAINTER_NAMES[Math.floor(Math.random() * PAINTER_NAMES.length)];
@@ -223,7 +235,7 @@ export default function Home() {
                   <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5">
                     Select Competition Mode
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {[
                       {
                         id: 'coloring',
@@ -242,6 +254,12 @@ export default function Home() {
                         label: 'Freestyle',
                         icon: Sparkles,
                         desc: 'Open creative interpretation prompt.'
+                      },
+                      {
+                        id: 'cooperative',
+                        label: 'Co-op (Friendly)',
+                        icon: Heart,
+                        desc: 'Paint together on 1 canvas with voice & chat.'
                       }
                     ].map((m) => {
                       const Icon = m.icon;
@@ -454,7 +472,16 @@ export default function Home() {
           </div>
 
           {/* Action Buttons */}
-          <div className="w-full flex items-center gap-3">
+          <div className="w-full flex flex-col sm:flex-row items-center gap-3">
+            <button
+              type="button"
+              onClick={handleLeaveLobby}
+              className="w-full sm:w-auto px-4 py-3 rounded-2xl border border-slate-200 dark:border-navy-700 bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Leave Lobby</span>
+            </button>
+
             <button
               type="button"
               onClick={handleToggleReady}
