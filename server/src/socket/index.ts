@@ -380,6 +380,62 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
     });
 
     // -------------------------------------------------------------
+    // CANVAS UNDO & REDO
+    // -------------------------------------------------------------
+    socket.on('canvas:undo', (data?: { matchId?: string; playerId?: string; teamId?: string }) => {
+      const info = socketPlayerMap.get(socket.id);
+      const matchId = data?.matchId || info?.matchId;
+      const playerId = data?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
+
+      const match = matchManager.getMatch(matchId);
+      if (!match || match.phase !== 'playing') return;
+
+      const player = match.players[playerId];
+      const teamId = data?.teamId || info?.teamId || player?.teamId;
+      if (!teamId || !match.teams[teamId]) return;
+
+      const team = match.teams[teamId];
+      // Find the last stroke belonging to this player and remove it
+      for (let i = team.strokes.length - 1; i >= 0; i--) {
+        if (team.strokes[i].playerId === playerId) {
+          const removed = team.strokes.splice(i, 1)[0];
+          io.to(`${matchId}:${teamId}`).emit('canvas:stroke_undone', {
+            playerId,
+            teamId,
+            strokeId: removed.id,
+            strokes: team.strokes
+          });
+          break;
+        }
+      }
+    });
+
+    socket.on('canvas:redo', (data?: { stroke?: DrawStroke; matchId?: string; playerId?: string; teamId?: string }) => {
+      const info = socketPlayerMap.get(socket.id);
+      const matchId = data?.matchId || info?.matchId;
+      const playerId = data?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
+
+      const match = matchManager.getMatch(matchId);
+      if (!match || match.phase !== 'playing') return;
+
+      const player = match.players[playerId];
+      const teamId = data?.teamId || info?.teamId || player?.teamId;
+      if (!teamId || !match.teams[teamId]) return;
+
+      if (data?.stroke) {
+        const { stroke: validatedStroke } = matchManager.addStroke(matchId, {
+          ...data.stroke,
+          playerId
+        });
+        if (validatedStroke) {
+          io.to(`${matchId}:${teamId}`).emit('canvas:stroke', validatedStroke);
+        }
+      }
+    });
+
+    // -------------------------------------------------------------
     // WEBRTC PRIVATE TEAM VOICE SIGNALING
     // -------------------------------------------------------------
     socket.on('voice:signal', ({ targetPlayerId, signal, matchId, senderPlayerId: clientSenderId }: { targetPlayerId: string; signal: any; matchId?: string; senderPlayerId?: string }) => {

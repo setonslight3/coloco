@@ -434,7 +434,7 @@ export class MatchManager {
       match.challenge = { ...defaultForMode };
     }
 
-    if (settings.durationSeconds && settings.durationSeconds >= 30 && settings.durationSeconds <= 600) {
+    if (settings.durationSeconds && settings.durationSeconds >= 30 && settings.durationSeconds <= 1800) {
       match.challenge.durationSeconds = settings.durationSeconds;
       match.timeRemainingSeconds = settings.durationSeconds;
     } else {

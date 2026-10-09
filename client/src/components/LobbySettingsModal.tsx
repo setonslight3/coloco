@@ -526,27 +526,30 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
 
           {/* Section 3: Time Limit & Preparation Timing */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Match Duration */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-sky-500" />
-                Drawing Time Limit
-              </label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[60, 90, 120, 150, 180, 240].map((sec) => (
-                  <button
-                    key={sec}
-                    type="button"
-                    onClick={() => setDurationSeconds(sec)}
-                    className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all text-center ${
-                      durationSeconds === sec
-                        ? 'border-sky-500 bg-sky-500 text-white shadow-xs'
-                        : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:border-sky-300'
-                    }`}
-                  >
-                    {sec}s ({Math.floor(sec / 60)}m{sec % 60 ? '30s' : ''})
-                  </button>
-                ))}
+            {/* Match Duration Slider (1 to 30 minutes) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-sky-500" />
+                  Drawing Time Limit
+                </label>
+                <span className="text-xs font-black text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-200 dark:border-sky-800">
+                  {Math.floor(durationSeconds / 60)} min{durationSeconds % 60 ? ` ${durationSeconds % 60}s` : ''}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={60}
+                max={1800}
+                step={30}
+                value={durationSeconds}
+                onChange={(e) => setDurationSeconds(parseInt(e.target.value, 10))}
+                className="w-full accent-sky-500 h-2 bg-slate-200 dark:bg-navy-700 rounded-lg cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                <span>1 min</span>
+                <span>15 min</span>
+                <span>30 min</span>
               </div>
             </div>
 

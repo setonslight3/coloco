@@ -15,13 +15,17 @@ import {
   Minimize2,
   Palette,
   X,
-  Check
+  Check,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 
 interface CanvasProps {
   strokes: DrawStroke[];
   onDrawStroke: (stroke: Omit<DrawStroke, 'id' | 'sequence'>) => void;
   onClearTerritory?: () => void;
+  onUndo?: () => void;
+  onRedo?: (stroke: DrawStroke) => void;
   myTerritoryIndex?: number;
   territories: TerritoryBoundary[];
   isLocked: boolean;
@@ -49,6 +53,8 @@ export function Canvas({
   strokes,
   onDrawStroke,
   onClearTerritory,
+  onUndo,
+  onRedo,
   myTerritoryIndex = 0,
   territories,
   isLocked,
@@ -70,6 +76,46 @@ export function Canvas({
   const [boundaryWarning, setBoundaryWarning] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // Undo & Redo History Management
+  const [redoStack, setRedoStack] = useState<DrawStroke[]>([]);
+
+  const handleTriggerUndo = () => {
+    if (isLocked) return;
+    // Find the last stroke made by this user in this territory
+    const myStrokes = strokes.filter(s => {
+      // Stroke is in this territory
+      return s.points && s.points.length > 0 && isPointInMyTerritory(s.points[0], myTerritoryIndex);
+    });
+
+    if (myStrokes.length > 0) {
+      const lastStroke = myStrokes[myStrokes.length - 1];
+      setRedoStack(prev => [...prev, lastStroke]);
+    }
+
+    if (onUndo) {
+      onUndo();
+    }
+  };
+
+  const handleTriggerRedo = () => {
+    if (isLocked || redoStack.length === 0) return;
+    const strokeToRedo = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, prev.length - 1));
+    if (onRedo) {
+      onRedo(strokeToRedo);
+    } else {
+      onDrawStroke({
+        playerId: strokeToRedo.playerId,
+        teamId: strokeToRedo.teamId,
+        color: strokeToRedo.color,
+        size: strokeToRedo.size,
+        points: strokeToRedo.points,
+        timestamp: Date.now(),
+        tool: strokeToRedo.tool
+      });
+    }
+  };
+
   // Modals & Panels
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isColorWheelOpen, setIsColorWheelOpen] = useState(false);
@@ -83,6 +129,48 @@ export function Canvas({
     '#ec4899', '#78350f'
   ];
 
+  // Boundary checker on client
+  const isPointInMyTerritory = useCallback((pt: DrawPoint, forTerritoryIndex: number = myTerritoryIndex): boolean => {
+    const total = territories.length || 2;
+    if (total <= 1) return true;
+
+    if (total === 2) {
+      const dividerX = 500 + 45 * Math.sin(((pt.y + 80) / 1000) * 2 * Math.PI * 2);
+      if (forTerritoryIndex === 0) return pt.x <= dividerX;
+      if (forTerritoryIndex === 1) return pt.x > dividerX;
+      return false;
+    }
+
+    if (total === 3) {
+      const div1 = 333 + 35 * Math.sin(((pt.y + 40) / 1000) * 2 * Math.PI * 2);
+      const div2 = 667 + 35 * Math.sin(((pt.y + 180) / 1000) * 2 * Math.PI * 2);
+      if (forTerritoryIndex === 0) return pt.x <= div1;
+      if (forTerritoryIndex === 1) return pt.x > div1 && pt.x <= div2;
+      if (forTerritoryIndex === 2) return pt.x > div2;
+      return false;
+    }
+
+    // 4 quadrants
+    const midX = 500 + 35 * Math.sin(((pt.y + 50) / 1000) * 1.5 * Math.PI * 2);
+    const midY = 500 + 35 * Math.cos(((pt.x + 70) / 1000) * 1.5 * Math.PI * 2);
+    const isLeft = pt.x <= midX;
+    const isTop = pt.y <= midY;
+    if (forTerritoryIndex === 0) return isLeft && isTop;
+    if (forTerritoryIndex === 1) return !isLeft && isTop;
+    if (forTerritoryIndex === 2) return isLeft && !isTop;
+    if (forTerritoryIndex === 3) return !isLeft && !isTop;
+    return true;
+  }, [myTerritoryIndex, territories]);
+
+  // Determine territory index for an arbitrary point (for seed strokes)
+  const getTerritoryIndexForPoint = useCallback((pt: DrawPoint): number => {
+    const total = territories.length || 2;
+    for (let i = 0; i < total; i++) {
+      if (isPointInMyTerritory(pt, i)) return i;
+    }
+    return myTerritoryIndex;
+  }, [territories, isPointInMyTerritory, myTerritoryIndex]);
+
   // Flood fill algorithm
   const performFloodFill = useCallback(
     (
@@ -90,12 +178,15 @@ export function Canvas({
       startX: number,
       startY: number,
       fillHex: string,
-      restrictToTerritory: boolean = true
+      territoryLimitIndex?: number
     ) => {
       const width = 1000;
       const height = 1000;
       const imgData = ctx.getImageData(0, 0, width, height);
       const data = imgData.data;
+
+      // Determine which territory bounds this fill must NEVER escape
+      const effectiveBoundIndex = territoryLimitIndex !== undefined ? territoryLimitIndex : getTerritoryIndexForPoint({ x: startX, y: startY });
 
       // Parse fill hex to RGBA
       const parsedHex = fillHex.replace('#', '');
@@ -165,7 +256,8 @@ export function Canvas({
             const vIdx = ny * width + nx;
             if (!visited[vIdx]) {
               visited[vIdx] = 1;
-              if (!restrictToTerritory || isPointInMyTerritory({ x: nx, y: ny })) {
+              // STRICT TERRITORY BARRIER: Fill CANNOT cross into another player's territory!
+              if (isPointInMyTerritory({ x: nx, y: ny }, effectiveBoundIndex)) {
                 const nDataIdx = vIdx * 4;
                 if (matchTarget(nDataIdx)) {
                   queue.push(nx, ny);
@@ -178,7 +270,7 @@ export function Canvas({
 
       ctx.putImageData(imgData, 0, 0);
     },
-    [myTerritoryIndex, territories]
+    [isPointInMyTerritory, getTerritoryIndexForPoint]
   );
 
   // Render all committed strokes
@@ -196,8 +288,8 @@ export function Canvas({
       if (!s.points || s.points.length === 0) continue;
 
       if (s.tool === 'fill') {
-        // Flood fill from seed point
-        performFloodFill(ctx, s.points[0].x, s.points[0].y, s.color, false);
+        // Flood fill strictly confined within territory where seed point originated
+        performFloodFill(ctx, s.points[0].x, s.points[0].y, s.color);
       } else {
         // Standard brush or eraser stroke
         ctx.beginPath();
@@ -423,38 +515,7 @@ export function Canvas({
     return { x: Math.max(0, Math.min(1000, x)), y: Math.max(0, Math.min(1000, y)) };
   };
 
-  // Boundary checker on client
-  const isPointInMyTerritory = (pt: DrawPoint): boolean => {
-    const total = territories.length || 2;
-    if (total <= 1) return true;
 
-    if (total === 2) {
-      const dividerX = 500 + 45 * Math.sin(((pt.y + 80) / 1000) * 2 * Math.PI * 2);
-      if (myTerritoryIndex === 0) return pt.x <= dividerX;
-      if (myTerritoryIndex === 1) return pt.x > dividerX;
-      return false;
-    }
-
-    if (total === 3) {
-      const div1 = 333 + 35 * Math.sin(((pt.y + 40) / 1000) * 2 * Math.PI * 2);
-      const div2 = 667 + 35 * Math.sin(((pt.y + 180) / 1000) * 2 * Math.PI * 2);
-      if (myTerritoryIndex === 0) return pt.x <= div1;
-      if (myTerritoryIndex === 1) return pt.x > div1 && pt.x <= div2;
-      if (myTerritoryIndex === 2) return pt.x > div2;
-      return false;
-    }
-
-    // 4 quadrants
-    const midX = 500 + 35 * Math.sin(((pt.y + 50) / 1000) * 1.5 * Math.PI * 2);
-    const midY = 500 + 35 * Math.cos(((pt.x + 70) / 1000) * 1.5 * Math.PI * 2);
-    const isLeft = pt.x <= midX;
-    const isTop = pt.y <= midY;
-    if (myTerritoryIndex === 0) return isLeft && isTop;
-    if (myTerritoryIndex === 1) return !isLeft && isTop;
-    if (myTerritoryIndex === 2) return isLeft && !isTop;
-    if (myTerritoryIndex === 3) return !isLeft && !isTop;
-    return true;
-  };
 
   const handlePointerDown = (e: any) => {
     if (isLocked) return;
@@ -491,7 +552,7 @@ export function Canvas({
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          performFloodFill(ctx, pt.x, pt.y, color, true);
+          performFloodFill(ctx, pt.x, pt.y, color, myTerritoryIndex);
           onDrawStroke({
             playerId: '',
             teamId: '',
@@ -875,16 +936,38 @@ export function Canvas({
         </div>
 
         {/* Brush Controls, Eraser, Fill Tool & Clear Canvas */}
-        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-          {/* Brush Size Slider with Live Preview Dot (visible in brush/eraser) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-wrap justify-end">
+          {/* Undo and Redo Action Buttons */}
+          <div className="flex items-center gap-1 bg-slate-50 dark:bg-navy-800 p-1 rounded-xl border border-slate-200 dark:border-navy-700">
+            <button
+              type="button"
+              onClick={handleTriggerUndo}
+              disabled={isLocked || strokes.filter(s => s.points && s.points.length > 0 && isPointInMyTerritory(s.points[0], myTerritoryIndex)).length === 0}
+              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-navy-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              title="Undo Last Stroke (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleTriggerRedo}
+              disabled={isLocked || redoStack.length === 0}
+              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-navy-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              title="Redo Stroke"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Brush Size Slider with Live Preview Dot (Max 50) */}
           {activeTool !== 'fill' && (
-            <div className="flex items-center gap-2 bg-slate-50 dark:bg-navy-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700">
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-navy-800 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700">
               <div className="w-5 h-5 flex items-center justify-center">
                 <span
                   className="rounded-full bg-slate-700 dark:bg-slate-200 transition-all duration-75"
                   style={{
-                    width: `${Math.max(4, Math.min(20, size * 0.7))}px`,
-                    height: `${Math.max(4, Math.min(20, size * 0.7))}px`,
+                    width: `${Math.max(4, Math.min(22, size * 0.44))}px`,
+                    height: `${Math.max(4, Math.min(22, size * 0.44))}px`,
                     backgroundColor: activeTool === 'eraser' ? '#f43f5e' : color
                   }}
                 />
@@ -892,12 +975,12 @@ export function Canvas({
               <input
                 type="range"
                 min={2}
-                max={32}
+                max={50}
                 value={size}
                 onChange={(e) => setSize(parseInt(e.target.value, 10))}
                 className="w-14 sm:w-20 accent-sky-500 cursor-pointer"
               />
-              <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 w-3">
+              <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 w-4 text-center">
                 {size}
               </span>
             </div>
@@ -959,7 +1042,7 @@ export function Canvas({
             <Pipette className="w-4 h-4" />
           </button>
 
-          {/* 4. Clear Canvas Button (With Confirmation Modal) */}
+          {/* 5. Clear Canvas Button (With Confirmation Modal) */}
           <button
             type="button"
             onClick={() => setIsClearConfirmOpen(true)}

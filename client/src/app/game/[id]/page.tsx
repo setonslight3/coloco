@@ -169,10 +169,29 @@ export default function GamePage() {
       }));
     };
 
+    const handleStrokeUndone = ({ teamId, strokes }: any) => {
+      setMatch((prev) => {
+        if (!prev) return null;
+        const team = prev.teams[teamId];
+        if (!team) return prev;
+        return {
+          ...prev,
+          teams: {
+            ...prev.teams,
+            [teamId]: {
+              ...team,
+              strokes: strokes || []
+            }
+          }
+        };
+      });
+    };
+
     socket.on('match:state', handleMatchState);
     socket.on('match:tick', handleTick);
     socket.on('canvas:stroke', handleStroke);
     socket.on('canvas:territory_cleared', handleTerritoryCleared);
+    socket.on('canvas:stroke_undone', handleStrokeUndone);
     socket.on('player:done_status', handlePlayerDone);
     socket.on('match:verdict', handleVerdict);
     socket.on('voice:state_change', handleVoiceStateChange);
@@ -183,6 +202,7 @@ export default function GamePage() {
       socket.off('match:tick', handleTick);
       socket.off('canvas:stroke', handleStroke);
       socket.off('canvas:territory_cleared', handleTerritoryCleared);
+      socket.off('canvas:stroke_undone', handleStrokeUndone);
       socket.off('player:done_status', handlePlayerDone);
       socket.off('match:verdict', handleVerdict);
       socket.off('voice:state_change', handleVoiceStateChange);
@@ -254,6 +274,25 @@ export default function GamePage() {
   const handleClearTerritory = () => {
     if (!myPlayer?.teamId) return;
     socket.emit('canvas:clear_territory', {
+      matchId,
+      playerId,
+      teamId: myPlayer.teamId
+    });
+  };
+
+  const handleUndo = () => {
+    if (!myPlayer?.teamId) return;
+    socket.emit('canvas:undo', {
+      matchId,
+      playerId,
+      teamId: myPlayer.teamId
+    });
+  };
+
+  const handleRedo = (stroke: DrawStroke) => {
+    if (!myPlayer?.teamId) return;
+    socket.emit('canvas:redo', {
+      stroke,
       matchId,
       playerId,
       teamId: myPlayer.teamId
@@ -433,6 +472,8 @@ export default function GamePage() {
               strokes={myTeam.strokes}
               onDrawStroke={handleDrawStroke}
               onClearTerritory={handleClearTerritory}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
               myTerritoryIndex={effectiveTerritoryIndex}
               territories={match.territories}
               isLocked={isMyLocked}
