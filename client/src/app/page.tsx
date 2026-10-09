@@ -119,7 +119,14 @@ export default function Home() {
   };
 
   const handleLeaveLobby = () => {
-    socket.emit('lobby:leave');
+    if (activeMatch && playerId) {
+      socket.emit('lobby:leave', {
+        matchId: activeMatch.id,
+        playerId
+      });
+    } else {
+      socket.emit('lobby:leave');
+    }
     setActiveMatch(null);
   };
 
@@ -167,16 +174,23 @@ export default function Home() {
   };
 
   const handleToggleReady = () => {
-    if (!activeMatch) return;
+    if (!activeMatch || !playerId) return;
     const me = activeMatch.players[playerId];
-    if (me) {
-      socket.emit('lobby:ready', { isReady: !me.isReady });
-    }
+    const nextReadyState = me ? !me.isReady : true;
+    socket.emit('lobby:ready', {
+      matchId: activeMatch.id,
+      playerId,
+      username: username || 'Painter',
+      isReady: nextReadyState
+    });
   };
 
   const handleStartMatch = () => {
-    if (!activeMatch) return;
-    socket.emit('lobby:start');
+    if (!activeMatch || !playerId) return;
+    socket.emit('lobby:start', {
+      matchId: activeMatch.id,
+      playerId
+    });
   };
 
   const handleCopyCode = () => {
@@ -194,7 +208,12 @@ export default function Home() {
     maxPlayers: number;
     isPublic: boolean;
   }) => {
-    socket.emit('lobby:update_settings', settings);
+    if (!activeMatch || !playerId) return;
+    socket.emit('lobby:update_settings', {
+      ...settings,
+      matchId: activeMatch.id,
+      playerId
+    });
   };
 
   const filteredPublicLobbies = publicLobbies.filter((lob) => {

@@ -300,9 +300,11 @@ export class MatchManager {
       const found = BUILT_IN_CHALLENGES.find(c => c.id === settings.challengeId);
       if (found) {
         match.challenge = { ...found };
-        match.mode = found.mode;
+        if (!settings.mode || settings.mode !== 'cooperative') {
+          match.mode = found.mode;
+        }
       }
-    } else if (settings.mode && match.challenge.mode !== settings.mode) {
+    } else if (settings.mode && match.challenge.mode !== settings.mode && settings.mode !== 'cooperative') {
       const defaultForMode = BUILT_IN_CHALLENGES.find(c => c.mode === settings.mode) || BUILT_IN_CHALLENGES[0];
       match.challenge = { ...defaultForMode };
     }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Mail, Key, User, LogIn, UserPlus, LogOut, ShieldCheck, Trophy, History } from 'lucide-react';
+import { X, Mail, Key, User, LogIn, UserPlus, LogOut, ShieldCheck, Trophy, History, Eye, EyeOff } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,6 +15,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -25,14 +26,30 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
     setLoading(true);
     setMessage(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setLoading(false);
+      setMessage({ text: 'Please enter both email and password.', type: 'error' });
+      return;
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
+      email: cleanEmail,
+      password: cleanPassword
     });
 
     setLoading(false);
     if (error) {
-      setMessage({ text: error.message, type: 'error' });
+      if (error.message.toLowerCase().includes('invalid login credentials')) {
+        setMessage({
+          text: 'Invalid login credentials. Please double check your email and use the eye icon to verify your password.',
+          type: 'error'
+        });
+      } else {
+        setMessage({ text: error.message, type: 'error' });
+      }
     } else {
       setMessage({ text: 'Logged in successfully!', type: 'success' });
       onAuthSuccess(data.user);
@@ -45,11 +62,27 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
     setLoading(true);
     setMessage(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+    const cleanUsername = username.trim() || cleanEmail.split('@')[0];
+
+    if (!cleanEmail || !cleanPassword) {
+      setLoading(false);
+      setMessage({ text: 'Please enter both email and password.', type: 'error' });
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      setLoading(false);
+      setMessage({ text: 'Password must be at least 6 characters long.', type: 'error' });
+      return;
+    }
+
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+      email: cleanEmail,
+      password: cleanPassword,
       options: {
-        data: { username: username.trim() || email.split('@')[0] }
+        data: { username: cleanUsername }
       }
     });
 
@@ -61,15 +94,19 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
 
     if (data.user) {
       // Upsert profile in public.profiles table
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        username: username.trim() || email.split('@')[0]
-      });
+      try {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          username: cleanUsername
+        });
+      } catch (err) {
+        console.warn('Profile sync note:', err);
+      }
 
       // Auto-sign in immediately
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password
+        email: cleanEmail,
+        password: cleanPassword
       });
 
       setLoading(false);
@@ -78,12 +115,21 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
         onAuthSuccess(signInData.user);
         setTimeout(onClose, 900);
       } else {
-        setMessage({ text: 'Account registered! Please sign in with your password to continue.', type: 'success' });
+        setEmail(cleanEmail);
+        setPassword(cleanPassword);
+        setMessage({
+          text: signInError
+            ? `Registration saved! (${signInError.message}). Please sign in.`
+            : 'Registration saved! Please sign in with your credentials.',
+          type: 'success'
+        });
         setTab('login');
       }
     } else {
       setLoading(false);
-      setMessage({ text: 'Account registered! Please sign in with your credentials.', type: 'success' });
+      setEmail(cleanEmail);
+      setPassword(cleanPassword);
+      setMessage({ text: 'Account registered! Please sign in.', type: 'success' });
       setTab('login');
     }
   };
@@ -93,7 +139,9 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
     setLoading(true);
     setMessage(null);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const cleanEmail = email.trim().toLowerCase();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: typeof window !== 'undefined' ? `${window.location.origin}` : 'https://coloco-game.vercel.app'
     });
 
@@ -224,14 +272,22 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
               <div className="relative">
                 <Key className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-sm font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
           )}

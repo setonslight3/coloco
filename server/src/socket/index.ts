@@ -46,32 +46,57 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       io.emit('lobby:list_updated', matchManager.getPublicLobbies());
     });
 
-    socket.on('lobby:ready', ({ isReady }: { isReady: boolean }) => {
-      const info = socketPlayerMap.get(socket.id);
-      if (!info) return;
+    socket.on('lobby:ready', (data: { isReady: boolean; playerId?: string; matchId?: string; username?: string }) => {
+      let info = socketPlayerMap.get(socket.id);
+      const matchId = data?.matchId || info?.matchId;
+      const playerId = data?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
 
-      const updated = matchManager.setPlayerReady(info.matchId, info.playerId, isReady);
+      socketPlayerMap.set(socket.id, { playerId, matchId });
+      socket.join(matchId);
+
+      const match = matchManager.getMatch(matchId);
+      if (match && match.phase === 'lobby') {
+        if (!match.players[playerId]) {
+          match.players[playerId] = {
+            id: playerId,
+            username: data.username || 'Painter',
+            isHost: match.hostId === playerId,
+            isReady: data.isReady,
+            isDone: false
+          };
+        }
+      }
+
+      const updated = matchManager.setPlayerReady(matchId, playerId, data.isReady);
       if (updated) {
-        io.to(info.matchId).emit('match:state', updated);
+        io.to(matchId).emit('match:state', updated);
       }
     });
 
-    socket.on('lobby:change_mode', ({ mode }: { mode: GameMode }) => {
+    socket.on('lobby:change_mode', ({ mode, matchId: clientMatchId, playerId: clientPlayerId }: { mode: GameMode; matchId?: string; playerId?: string }) => {
       const info = socketPlayerMap.get(socket.id);
-      if (!info) return;
+      const matchId = clientMatchId || info?.matchId;
+      const playerId = clientPlayerId || info?.playerId;
+      if (!matchId || !playerId) return;
 
-      const updated = matchManager.setGameMode(info.matchId, info.playerId, mode);
+      socketPlayerMap.set(socket.id, { playerId, matchId });
+      socket.join(matchId);
+
+      const updated = matchManager.setGameMode(matchId, playerId, mode);
       if (updated) {
-        io.to(info.matchId).emit('match:state', updated);
+        io.to(matchId).emit('match:state', updated);
       }
     });
 
-    socket.on('lobby:leave', () => {
+    socket.on('lobby:leave', (payload?: { matchId?: string; playerId?: string }) => {
       const info = socketPlayerMap.get(socket.id);
-      if (!info) return;
+      const matchId = payload?.matchId || info?.matchId;
+      const playerId = payload?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
 
-      const { match, deleted } = matchManager.leaveMatch(info.matchId, info.playerId);
-      socket.leave(info.matchId);
+      const { match, deleted } = matchManager.leaveMatch(matchId, playerId);
+      socket.leave(matchId);
       socketPlayerMap.delete(socket.id);
 
       socket.emit('match:left');
@@ -84,18 +109,28 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
 
     socket.on('lobby:update_settings', (settings: any) => {
       const info = socketPlayerMap.get(socket.id);
-      if (!info) return;
+      const matchId = settings?.matchId || info?.matchId;
+      const playerId = settings?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
 
-      const updated = matchManager.updateLobbySettings(info.matchId, info.playerId, settings);
+      socketPlayerMap.set(socket.id, { playerId, matchId });
+      socket.join(matchId);
+
+      const updated = matchManager.updateLobbySettings(matchId, playerId, settings);
       if (updated) {
-        io.to(info.matchId).emit('match:state', updated);
+        io.to(matchId).emit('match:state', updated);
         io.emit('lobby:list_updated', matchManager.getPublicLobbies());
       }
     });
 
-    socket.on('lobby:start', () => {
+    socket.on('lobby:start', (payload?: { matchId?: string; playerId?: string }) => {
       const info = socketPlayerMap.get(socket.id);
-      if (!info) return;
+      const matchId = payload?.matchId || info?.matchId;
+      const playerId = payload?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
+
+      socketPlayerMap.set(socket.id, { playerId, matchId });
+      socket.join(matchId);
 
       const onTick = (m: MatchState) => {
         io.to(m.id).emit('match:tick', {
@@ -142,7 +177,7 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
         io.to(m.id).emit('match:state', m);
       };
 
-      const match = matchManager.startMatch(info.matchId, info.playerId, onTick, onPhaseChange);
+      const match = matchManager.startMatch(matchId, playerId, onTick, onPhaseChange);
       if (match) {
         io.to(match.id).emit('match:state', match);
       }
@@ -301,17 +336,32 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
     });
 
     // -------------------------------------------------------------
-    // DISCONNECT
+    // DISCONNECT (with grace period for lobby transport upgrades)
     // -------------------------------------------------------------
     socket.on('disconnect', () => {
       const info = socketPlayerMap.get(socket.id);
       if (info) {
         socketPlayerMap.delete(socket.id);
-        const match = matchManager.getMatch(info.matchId);
-        if (match && match.phase === 'lobby') {
-          delete match.players[info.playerId];
-          io.to(match.id).emit('match:state', match);
-        }
+        const { playerId, matchId } = info;
+
+        // Grace period before removing from lobby so transient reconnections don't drop the player
+        setTimeout(() => {
+          let hasReconnected = false;
+          for (const mapped of socketPlayerMap.values()) {
+            if (mapped.playerId === playerId && mapped.matchId === matchId) {
+              hasReconnected = true;
+              break;
+            }
+          }
+          if (!hasReconnected) {
+            const match = matchManager.getMatch(matchId);
+            if (match && match.phase === 'lobby') {
+              matchManager.leaveMatch(matchId, playerId);
+              io.to(match.id).emit('match:state', match);
+              io.emit('lobby:list_updated', matchManager.getPublicLobbies());
+            }
+          }
+        }, 10000);
       }
     });
   });
