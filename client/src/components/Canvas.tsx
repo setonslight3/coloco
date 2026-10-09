@@ -9,6 +9,7 @@ import {
   Eraser,
   Paintbrush,
   PaintBucket,
+  Pipette,
   Trash2,
   Maximize2,
   Minimize2,
@@ -54,7 +55,7 @@ export function Canvas({
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const colorWheelCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const [activeTool, setActiveTool] = useState<'brush' | 'eraser' | 'fill'>('brush');
+  const [activeTool, setActiveTool] = useState<'brush' | 'eraser' | 'fill' | 'eyedropper'>('brush');
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<DrawPoint[]>([]);
   const [color, setColor] = useState('#0284c7');
@@ -456,6 +457,24 @@ export function Canvas({
     const pt = getCanvasPoint(e);
     if (!pt) return;
 
+    // Eyedropper Tool: Works ANYWHERE across the canvas (including teammate's territory)
+    if (activeTool === 'eyedropper') {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const pixel = ctx.getImageData(Math.floor(pt.x), Math.floor(pt.y), 1, 1).data;
+          const hex = `#${((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1)}`;
+          setColor(hex);
+          setCustomHexInput(hex);
+          setActiveTool('brush');
+          setBoundaryWarning(`Picked color ${hex.toUpperCase()}! Switched to brush.`);
+          setTimeout(() => setBoundaryWarning(null), 2000);
+        }
+      }
+      return;
+    }
+
     if (!isPointInMyTerritory(pt)) {
       setBoundaryWarning('Blocked: You cannot draw in your teammate or opponent territory!');
       setTimeout(() => setBoundaryWarning(null), 2500);
@@ -488,7 +507,7 @@ export function Canvas({
   };
 
   const handlePointerMove = (e: any) => {
-    if (!isDrawing || isLocked || activeTool === 'fill') return;
+    if (!isDrawing || isLocked || activeTool === 'fill' || activeTool === 'eyedropper') return;
     const pt = getCanvasPoint(e);
     if (!pt) return;
 
@@ -519,7 +538,7 @@ export function Canvas({
   };
 
   const handlePointerUp = () => {
-    if (!isDrawing || isLocked || activeTool === 'fill') return;
+    if (!isDrawing || isLocked || activeTool === 'fill' || activeTool === 'eyedropper') return;
     setIsDrawing(false);
 
     // Filter points strictly inside territory
@@ -547,9 +566,7 @@ export function Canvas({
     setIsClearConfirmOpen(false);
   };
 
-  const hasColoringLineArt = Boolean(
-    challenge.templateLineArtSvg || challenge.mode === 'coloring'
-  );
+  const hasColoringLineArt = challenge.mode === 'coloring' && Boolean(challenge.templateLineArtSvg || DEFAULT_COLORING_LINE_ART);
   const lineArtHtml = challenge.templateLineArtSvg || DEFAULT_COLORING_LINE_ART;
 
   return (
@@ -716,6 +733,8 @@ export function Canvas({
           className={`absolute inset-0 w-full h-full object-contain select-none ${
             isLocked
               ? 'cursor-not-allowed'
+              : activeTool === 'eyedropper'
+              ? 'cursor-copy'
               : activeTool === 'fill'
               ? 'cursor-cell'
               : 'cursor-crosshair'
@@ -916,6 +935,20 @@ export function Canvas({
             title="Eraser Tool"
           >
             <Eraser className="w-4 h-4" />
+          </button>
+
+          {/* 4. Eyedropper Tool (Sample any color on canvas, including teammate territory) */}
+          <button
+            type="button"
+            onClick={() => setActiveTool('eyedropper')}
+            className={`p-2 rounded-xl text-xs font-bold transition-all border ${
+              activeTool === 'eyedropper'
+                ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                : 'bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-navy-700 hover:bg-slate-100'
+            }`}
+            title="Eyedropper / Color Picker (Click anywhere to sample color)"
+          >
+            <Pipette className="w-4 h-4" />
           </button>
 
           {/* 4. Clear Canvas Button (With Confirmation Modal) */}

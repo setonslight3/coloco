@@ -11,6 +11,10 @@ interface VoiceChatProps {
   myPlayerId: string;
   teammateIds: string[];
   isVoiceActive: boolean;
+  onVoiceStateChange?: (state: { isMuted: boolean; isDeafened: boolean; isConnected: boolean }) => void;
+  peerVoiceStates?: { [playerId: string]: { isMuted?: boolean; isDeafened?: boolean } };
+  externalMuteToggle?: number;
+  externalDeafenToggle?: number;
 }
 
 const ICE_SERVERS: RTCConfiguration = {
@@ -28,7 +32,11 @@ export function VoiceChat({
   teamId,
   myPlayerId,
   teammateIds,
-  isVoiceActive
+  isVoiceActive,
+  onVoiceStateChange,
+  peerVoiceStates,
+  externalMuteToggle,
+  externalDeafenToggle
 }: VoiceChatProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
@@ -256,6 +264,41 @@ export function VoiceChat({
       isDeafened: nextDeafened
     });
   };
+
+  // Notify parent of voice state changes
+  useEffect(() => {
+    if (onVoiceStateChange) {
+      onVoiceStateChange({ isMuted, isDeafened, isConnected });
+    }
+  }, [isMuted, isDeafened, isConnected, onVoiceStateChange]);
+
+  // Handle external toggles from teammates list
+  const prevMuteTrigger = useRef(externalMuteToggle);
+  useEffect(() => {
+    if (externalMuteToggle !== undefined && externalMuteToggle !== prevMuteTrigger.current) {
+      prevMuteTrigger.current = externalMuteToggle;
+      toggleMute();
+    }
+  }, [externalMuteToggle]);
+
+  const prevDeafenTrigger = useRef(externalDeafenToggle);
+  useEffect(() => {
+    if (externalDeafenToggle !== undefined && externalDeafenToggle !== prevDeafenTrigger.current) {
+      prevDeafenTrigger.current = externalDeafenToggle;
+      toggleDeafen();
+    }
+  }, [externalDeafenToggle]);
+
+  // Mute individual peer audio when remote audios change or peerVoiceStates update
+  useEffect(() => {
+    if (!peerVoiceStates) return;
+    Object.entries(peerVoiceStates).forEach(([pid, st]) => {
+      const audio = remoteAudiosRef.current[pid];
+      if (audio) {
+        audio.muted = isDeafened || Boolean(st?.isMuted);
+      }
+    });
+  }, [peerVoiceStates, isDeafened]);
 
   if (!isVoiceActive) {
     return (

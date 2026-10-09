@@ -20,6 +20,22 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       io.emit('lobby:list_updated', matchManager.getPublicLobbies());
     });
 
+    socket.on('game:join', ({ matchId, playerId }: { matchId: string; playerId: string }) => {
+      if (!matchId || !playerId) return;
+      const match = matchManager.getMatch(matchId);
+      if (!match) return;
+
+      const player = match.players[playerId];
+      const teamId = player?.teamId;
+
+      socketPlayerMap.set(socket.id, { playerId, matchId, teamId });
+      socket.join(matchId);
+      if (teamId) {
+        socket.join(`${matchId}:${teamId}`);
+      }
+      socket.emit('match:state', match);
+    });
+
     socket.on('lobby:get_public', () => {
       socket.emit('lobby:list', matchManager.getPublicLobbies());
     });

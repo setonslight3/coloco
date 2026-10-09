@@ -21,82 +21,160 @@ export interface LobbySettingsPayload {
 
 // Predefined challenges across all modes
 export const BUILT_IN_CHALLENGES: Challenge[] = [
-  // --- COLORING CHALLENGES ---
+  // --- COLORING CHALLENGES (Basic, recognizable objects: Airplane, Cat, Dog, Sailboat) ---
   {
-    id: 'ch-coloring-owl',
+    id: 'ch-coloring-airplane',
     mode: 'coloring',
-    title: 'The Starlit Owl',
-    description: 'Color the wise guardian of the night forest. Add celestial glow and starry plumage!',
-    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
-      <path d="M 500 150 C 350 150 250 300 250 600 C 250 800 350 900 500 900 C 650 900 750 800 750 600 C 750 300 650 150 500 150 Z" />
-      <circle cx="400" cy="400" r="80" stroke-width="8" />
-      <circle cx="600" cy="400" r="80" stroke-width="8" />
-      <circle cx="400" cy="400" r="30" fill="currentColor" />
-      <circle cx="600" cy="400" r="30" fill="currentColor" />
-      <polygon points="500,480 470,550 530,550" />
-      <path d="M 300 650 Q 500 750 700 650" />
-      <path d="M 350 700 Q 500 800 650 700" />
-      <circle cx="500" cy="500" r="400" stroke-dasharray="20 15" stroke-width="3" />
+    title: 'Sky Airplane',
+    description: 'A clean passenger jet flying across sunny clouds. Color the wings, body, and sky!',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Fuselage -->
+      <path d="M 180 500 C 180 440 260 410 450 420 L 720 430 C 820 430 900 470 920 500 C 900 530 820 570 720 570 L 450 580 C 260 590 180 560 180 500 Z" />
+      <!-- Cockpit & Passenger Windows -->
+      <ellipse cx="840" cy="485" rx="35" ry="20" stroke-width="6" />
+      <circle cx="720" cy="485" r="14" stroke-width="5" />
+      <circle cx="650" cy="485" r="14" stroke-width="5" />
+      <circle cx="580" cy="485" r="14" stroke-width="5" />
+      <circle cx="510" cy="485" r="14" stroke-width="5" />
+      <circle cx="440" cy="485" r="14" stroke-width="5" />
+      <!-- Main Upper Wing -->
+      <polygon points="560,430 450,150 370,160 440,430" stroke-width="8" />
+      <!-- Main Lower Wing -->
+      <polygon points="560,570 450,850 370,840 440,570" stroke-width="8" />
+      <!-- Tail Fin -->
+      <polygon points="280,430 200,240 140,240 190,450" stroke-width="8" />
+      <polygon points="260,570 210,680 160,680 190,560" stroke-width="7" />
+      <!-- Fluffy Clouds -->
+      <path d="M 120 780 C 140 730 220 730 250 770 C 290 750 360 780 350 830 C 350 860 110 860 120 780 Z" stroke-width="6" stroke-dasharray="16 10" />
+      <path d="M 680 230 C 700 180 770 180 800 220 C 840 200 900 230 890 270 C 890 300 670 300 680 230 Z" stroke-width="6" stroke-dasharray="16 10" />
     </svg>`,
     durationSeconds: 120
   },
   {
-    id: 'ch-coloring-mandala',
+    id: 'ch-coloring-cat',
     mode: 'coloring',
-    title: 'Sacred Cosmic Mandala',
-    description: 'Intricate interlocking rings, lotus petals, and radiant energy rays.',
-    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="5">
-      <circle cx="500" cy="500" r="100" />
-      <circle cx="500" cy="500" r="220" stroke-dasharray="15 10" />
-      <circle cx="500" cy="500" r="350" />
-      <circle cx="500" cy="500" r="450" stroke-dasharray="25 15" />
-      <polygon points="500,150 850,500 500,850 150,500" />
-      <polygon points="500,100 800,750 200,750" />
-      <polygon points="500,900 200,250 800,250" />
-      <circle cx="500" cy="500" r="30" fill="currentColor" />
+    title: 'Playful Kitten',
+    description: 'A cute friendly cat with whiskers and pointy ears. Easy to color with fur patterns!',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Cat Head -->
+      <circle cx="500" cy="420" r="230" stroke-width="8" />
+      <!-- Left & Right Ears -->
+      <polygon points="320,300 240,110 400,210" stroke-width="8" />
+      <polygon points="680,300 760,110 600,210" stroke-width="8" />
+      <polygon points="330,270 270,150 380,215" stroke-width="5" />
+      <polygon points="670,270 730,150 620,215" stroke-width="5" />
+      <!-- Big Eyes -->
+      <ellipse cx="400" cy="400" rx="42" ry="52" stroke-width="7" />
+      <circle cx="412" cy="395" r="20" fill="currentColor" />
+      <ellipse cx="600" cy="400" rx="42" ry="52" stroke-width="7" />
+      <circle cx="588" cy="395" r="20" fill="currentColor" />
+      <!-- Cute Nose & Smile -->
+      <polygon points="500,470 475,445 525,445" fill="currentColor" />
+      <path d="M 500 470 L 500 505 Q 460 540 430 500" stroke-width="6" />
+      <path d="M 500 505 Q 540 540 570 500" stroke-width="6" />
+      <!-- Whiskers -->
+      <line x1="360" y1="465" x2="180" y2="445" stroke-width="6" />
+      <line x1="360" y1="485" x2="160" y2="495" stroke-width="6" />
+      <line x1="360" y1="505" x2="190" y2="540" stroke-width="6" />
+      <line x1="640" y1="465" x2="820" y2="445" stroke-width="6" />
+      <line x1="640" y1="485" x2="840" y2="495" stroke-width="6" />
+      <line x1="640" y1="505" x2="810" y2="540" stroke-width="6" />
+      <!-- Body Outline -->
+      <path d="M 330 620 C 260 700 240 850 240 920 L 760 920 C 760 850 740 700 670 620" stroke-width="8" />
+      <!-- Collar & Bell -->
+      <path d="M 360 645 Q 500 700 640 645" stroke-width="7" />
+      <circle cx="500" cy="710" r="30" stroke-width="6" />
     </svg>`,
     durationSeconds: 120
   },
   {
-    id: 'ch-coloring-turtle',
+    id: 'ch-coloring-dog',
     mode: 'coloring',
-    title: 'Reef Guardian Turtle',
-    description: 'An ancient sea turtle gliding above glowing sea corals and bubbles.',
-    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
-      <ellipse cx="500" cy="500" rx="260" ry="340" />
-      <path d="M 500 160 C 500 80 440 60 440 30 C 440 10 560 10 560 30 C 560 60 500 80 500 160" />
-      <path d="M 280 300 C 120 200 40 260 60 380 C 100 420 200 400 260 380" />
-      <path d="M 720 300 C 880 200 960 260 940 380 C 900 420 800 400 740 380" />
-      <path d="M 320 720 C 180 820 180 920 240 940 C 280 940 340 880 360 800" />
-      <path d="M 680 720 C 820 820 820 920 760 940 C 720 940 660 880 640 800" />
+    title: 'Happy Puppy',
+    description: 'A charming puppy with floppy ears and a wagging tail. Simple shapes for bright colors!',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Puppy Head -->
+      <ellipse cx="500" cy="400" rx="220" ry="200" stroke-width="8" />
+      <!-- Floppy Left & Right Ears -->
+      <path d="M 310 280 C 200 280 150 420 180 560 C 200 620 260 620 280 520 L 300 400" stroke-width="8" />
+      <path d="M 690 280 C 800 280 850 420 820 560 C 800 620 740 620 720 520 L 700 400" stroke-width="8" />
+      <!-- Puppy Eyes -->
+      <circle cx="410" cy="380" r="35" stroke-width="7" />
+      <circle cx="420" cy="375" r="16" fill="currentColor" />
+      <circle cx="590" cy="380" r="35" stroke-width="7" />
+      <circle cx="580" cy="375" r="16" fill="currentColor" />
+      <!-- Big Round Nose -->
+      <ellipse cx="500" cy="460" rx="45" ry="32" fill="currentColor" />
+      <!-- Happy Open Mouth / Tongue -->
+      <path d="M 500 492 L 500 525 Q 450 550 420 520" stroke-width="6" />
+      <path d="M 500 525 Q 550 550 580 520" stroke-width="6" />
+      <path d="M 470 535 C 470 600 530 600 530 535 Z" fill="#f43f5e" stroke-width="5" />
+      <!-- Body and Paws -->
+      <path d="M 320 580 C 270 680 250 820 260 920 L 740 920 C 750 820 730 680 680 580" stroke-width="8" />
+      <path d="M 430 760 L 430 920" stroke-width="6" />
+      <path d="M 570 760 L 570 920" stroke-width="6" />
     </svg>`,
-    durationSeconds: 150
+    durationSeconds: 120
+  },
+  {
+    id: 'ch-coloring-sailboat',
+    mode: 'coloring',
+    title: 'Ocean Sailboat',
+    description: 'A classic sailboat cruising through gentle ocean waves beneath the warm sun.',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Sun -->
+      <circle cx="820" cy="180" r="70" stroke-width="7" />
+      <line x1="820" y1="70" x2="820" y2="40" stroke-width="6" />
+      <line x1="930" y1="180" x2="960" y2="180" stroke-width="6" />
+      <line x1="710" y1="180" x2="680" y2="180" stroke-width="6" />
+      <line x1="895" y1="105" x2="920" y2="80" stroke-width="6" />
+      <!-- Mast -->
+      <line x1="500" y1="160" x2="500" y2="670" stroke-width="10" />
+      <!-- Main Sail (Right) -->
+      <polygon points="515,190 770,620 515,620" stroke-width="8" />
+      <!-- Jib / Front Sail (Left) -->
+      <polygon points="485,240 250,620 485,620" stroke-width="8" />
+      <!-- Hull -->
+      <polygon points="180,680 820,680 730,800 270,800" stroke-width="8" />
+      <!-- Ocean Waves -->
+      <path d="M 80 850 Q 200 810 320 850 T 560 850 T 800 850 T 960 850" stroke-width="7" />
+      <path d="M 40 920 Q 180 880 320 920 T 600 920 T 880 920 T 980 920" stroke-width="7" />
+    </svg>`,
+    durationSeconds: 120
   },
 
-  // --- DRAWING CHALLENGES ---
+  // --- DRAWING CHALLENGES (Blank canvas, reference guide provided) ---
+  {
+    id: 'ch-drawing-apple',
+    mode: 'drawing',
+    title: 'Red Delicious Apple',
+    description: 'Draw a shiny red apple with a wooden stem and a green leaf.',
+    referenceImageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=800&auto=format&fit=crop&q=80',
+    durationSeconds: 150
+  },
+  {
+    id: 'ch-drawing-cat',
+    mode: 'drawing',
+    title: 'Fluffy Cat Portrait',
+    description: 'Sketch a cute ginger cat with whiskers, pointy ears, and expressive green eyes.',
+    referenceImageUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&auto=format&fit=crop&q=80',
+    durationSeconds: 150
+  },
   {
     id: 'ch-drawing-lighthouse',
     mode: 'drawing',
-    title: 'Beacon in the Storm',
-    description: 'Collaborate to depict a cliffside lighthouse shining through raging storm waves.',
+    title: 'Seaside Lighthouse',
+    description: 'Depict a sturdy coastal lighthouse with its bright light and sea waves.',
     referenceImageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
     durationSeconds: 150
   },
   {
-    id: 'ch-drawing-mountain',
+    id: 'ch-drawing-car',
     mode: 'drawing',
-    title: 'Alpine Golden Dawn',
-    description: 'A majestic snow-capped mountain range greeting the first warm rays of sunrise.',
-    referenceImageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80',
+    title: 'Vintage Red Car',
+    description: 'Draw a classic retro automobile with round headlights and chrome bumpers.',
+    referenceImageUrl: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80',
     durationSeconds: 150
-  },
-  {
-    id: 'ch-drawing-cyberpunk',
-    mode: 'drawing',
-    title: 'Neon Metropolis Skyline',
-    description: 'Towering skyscraper silhouettes drenched in violet and electric cyan neon light.',
-    referenceImageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800&auto=format&fit=crop&q=80',
-    durationSeconds: 180
   },
 
   // --- FREESTYLE CHALLENGES ---

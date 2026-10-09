@@ -19,7 +19,11 @@ import {
   Radio,
   Flag,
   Home,
-  LogOut
+  LogOut,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 export default function GamePage() {
@@ -35,10 +39,29 @@ export default function GamePage() {
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [namingTimeRemaining, setNamingTimeRemaining] = useState<number>(20);
   const [reportingTarget, setReportingTarget] = useState<{ id: string; name: string } | null>(null);
+  const [peerVoiceStates, setPeerVoiceStates] = useState<{ [playerId: string]: { isMuted?: boolean; isDeafened?: boolean } }>({});
+  const [myVoiceState, setMyVoiceState] = useState<{ isMuted: boolean; isDeafened: boolean; isConnected: boolean }>({
+    isMuted: false,
+    isDeafened: false,
+    isConnected: false
+  });
+  const [externalMuteToggleCount, setExternalMuteToggleCount] = useState(0);
+  const [externalDeafenToggleCount, setExternalDeafenToggleCount] = useState(0);
 
   useEffect(() => {
     const pid = sessionStorage.getItem('coloco_player_id') || '';
     setPlayerId(pid);
+
+    if (matchId && pid) {
+      socket.emit('game:join', { matchId, playerId: pid });
+    }
+
+    const onConnect = () => {
+      if (matchId && pid) {
+        socket.emit('game:join', { matchId, playerId: pid });
+      }
+    };
+    socket.on('connect', onConnect);
 
     const handleMatchState = (m: MatchState) => {
       setMatch(m);
@@ -129,22 +152,32 @@ export default function GamePage() {
       });
     };
 
+    const handleVoiceStateChange = ({ playerId: vPid, isMuted: vMuted, isDeafened: vDeafened }: any) => {
+      setPeerVoiceStates((prev) => ({
+        ...prev,
+        [vPid]: { isMuted: vMuted, isDeafened: vDeafened }
+      }));
+    };
+
     socket.on('match:state', handleMatchState);
     socket.on('match:tick', handleTick);
     socket.on('canvas:stroke', handleStroke);
     socket.on('canvas:territory_cleared', handleTerritoryCleared);
     socket.on('player:done_status', handlePlayerDone);
     socket.on('match:verdict', handleVerdict);
+    socket.on('voice:state_change', handleVoiceStateChange);
 
     return () => {
+      socket.off('connect', onConnect);
       socket.off('match:state', handleMatchState);
       socket.off('match:tick', handleTick);
       socket.off('canvas:stroke', handleStroke);
       socket.off('canvas:territory_cleared', handleTerritoryCleared);
       socket.off('player:done_status', handlePlayerDone);
       socket.off('match:verdict', handleVerdict);
+      socket.off('voice:state_change', handleVoiceStateChange);
     };
-  }, [socket]);
+  }, [socket, matchId]);
 
   if (!match) {
     return (
@@ -316,6 +349,10 @@ export default function GamePage() {
               myPlayerId={playerId}
               teammateIds={myTeam.playerIds.filter(pid => pid !== playerId)}
               isVoiceActive={match.phase === 'playing'}
+              onVoiceStateChange={setMyVoiceState}
+              peerVoiceStates={peerVoiceStates}
+              externalMuteToggle={externalMuteToggleCount}
+              externalDeafenToggle={externalDeafenToggleCount}
             />
           )}
 
@@ -372,24 +409,81 @@ export default function GamePage() {
               {myTeam?.playerIds.map((pid) => {
                 const p = match.players[pid];
                 const isMe = pid === playerId;
+                const pVoice = isMe ? myVoiceState : peerVoiceStates[pid];
+                const isMuted = Boolean(pVoice?.isMuted);
+                const isDeafened = Boolean(pVoice?.isDeafened);
+
                 return (
                   <div
                     key={pid}
-                    className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 dark:bg-navy-800 text-xs"
+                    className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 dark:bg-navy-800 text-xs gap-2"
                   >
-                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[130px]">
-                      {p?.username || 'Teammate'} {isMe && '(You)'}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[100px] sm:max-w-[120px]">
+                        {p?.username || 'Teammate'} {isMe && '(You)'}
+                      </span>
+                    </div>
+
                     <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {/* Interactive Mute / Deafen Controls directly next to Player Names */}
+                      <div className="flex items-center gap-1 bg-white dark:bg-navy-700 px-1.5 py-0.5 rounded-xl border border-slate-200 dark:border-navy-600 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isMe) {
+                              setExternalMuteToggleCount((c) => c + 1);
+                            } else {
+                              // Local mute toggle for remote peer
+                              setPeerVoiceStates((prev) => ({
+                                ...prev,
+                                [pid]: { ...prev[pid], isMuted: !isMuted }
+                              }));
+                            }
+                          }}
+                          className={`p-1 rounded-lg transition-colors ${
+                            isMuted
+                              ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50'
+                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                          }`}
+                          title={isMe ? (isMuted ? 'Unmute Mic' : 'Mute Mic') : (isMuted ? 'Unmute Player for You' : 'Mute Player for You')}
+                        >
+                          {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isMe) {
+                              setExternalDeafenToggleCount((c) => c + 1);
+                            } else {
+                              // Local deafen toggle for remote peer
+                              setPeerVoiceStates((prev) => ({
+                                ...prev,
+                                [pid]: { ...prev[pid], isDeafened: !isDeafened, isMuted: !isDeafened }
+                              }));
+                            }
+                          }}
+                          className={`p-1 rounded-lg transition-colors ${
+                            isDeafened
+                              ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50'
+                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                          }`}
+                          title={isMe ? (isDeafened ? 'Undeafen' : 'Deafen') : (isDeafened ? 'Undeafen Player' : 'Deafen Player')}
+                        >
+                          {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                        </button>
+                      </div>
+
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           p?.isDone
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
                             : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
                         }`}
                       >
-                        {p?.isDone ? 'Locked / Done' : 'Drawing'}
+                        {p?.isDone ? 'Done' : 'Drawing'}
                       </span>
+
                       {!isMe && p && (
                         <button
                           type="button"
