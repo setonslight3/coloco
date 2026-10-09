@@ -128,6 +128,22 @@ export const BUILT_IN_CHALLENGES: Challenge[] = [
     mode: 'cooperative',
     title: 'Enchanted Forest Sanctuary',
     description: 'Paint together on one canvas in friendly harmony! Add mystical trees, gentle woodland creatures, and glowing fireflies.',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
+      <path d="M 460 450 C 460 650 380 820 220 920 C 340 920 420 860 500 860 C 580 860 660 920 780 920 C 620 820 540 650 540 450 Z" />
+      <path d="M 500 120 C 320 120 200 240 200 400 C 200 520 280 600 380 640 C 440 480 560 480 620 640 C 720 600 800 520 800 400 C 800 240 680 120 500 120 Z" />
+      <path d="M 320 300 C 380 200 620 200 680 300" stroke-dasharray="16 12" />
+      <circle cx="500" cy="320" r="90" stroke-width="5" />
+      <path d="M 220 850 C 220 780 320 780 320 850 Z" />
+      <rect x="255" y="850" width="30" height="70" rx="8" />
+      <path d="M 680 840 C 680 770 780 770 780 840 Z" />
+      <rect x="715" y="840" width="30" height="80" rx="8" />
+      <circle cx="280" cy="220" r="16" fill="currentColor" />
+      <circle cx="720" cy="220" r="16" fill="currentColor" />
+      <circle cx="500" cy="200" r="12" fill="currentColor" />
+      <circle cx="340" cy="460" r="10" fill="currentColor" />
+      <circle cx="660" cy="460" r="10" fill="currentColor" />
+      <path d="M 470 720 C 470 660 530 660 530 720 C 530 790 470 790 470 720 Z" />
+    </svg>`,
     durationSeconds: 180
   },
   {
@@ -135,6 +151,23 @@ export const BUILT_IN_CHALLENGES: Challenge[] = [
     mode: 'cooperative',
     title: 'Coral Reef Harmony',
     description: 'A relaxed cooperative expedition to paint a vibrant underwater coral paradise together.',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
+      <path d="M 0 880 Q 250 820 500 860 T 1000 840 L 1000 1000 L 0 1000 Z" />
+      <ellipse cx="500" cy="420" rx="200" ry="260" stroke-width="7" />
+      <path d="M 500 160 C 470 110 530 110 500 160 Z" />
+      <path d="M 320 280 C 200 220 180 340 320 380" stroke-width="6" />
+      <path d="M 680 280 C 800 220 820 340 680 380" stroke-width="6" />
+      <path d="M 360 620 C 260 680 280 760 380 700" stroke-width="6" />
+      <path d="M 640 620 C 740 680 720 760 620 700" stroke-width="6" />
+      <ellipse cx="500" cy="420" rx="120" ry="160" stroke-dasharray="20 14" />
+      <path d="M 150 860 C 120 740 180 660 220 620 C 240 680 210 760 250 860" />
+      <path d="M 820 850 C 790 730 860 650 880 610 C 900 680 860 760 890 850" />
+      <polygon points="210,460 240,480 210,500" />
+      <circle cx="275" cy="475" r="4" fill="currentColor" />
+      <circle cx="480" cy="180" r="22" stroke-width="5" />
+      <circle cx="530" cy="120" r="14" stroke-width="4" />
+      <circle cx="510" cy="70" r="18" stroke-width="4" />
+    </svg>`,
     durationSeconds: 180
   },
   {
@@ -142,6 +175,17 @@ export const BUILT_IN_CHALLENGES: Challenge[] = [
     mode: 'cooperative',
     title: 'Cosmic Constellation Journey',
     description: 'Cooperate to paint distant starfields, orbiting planets, and swirling nebulae with your friend.',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
+      <circle cx="500" cy="500" r="190" stroke-width="7" />
+      <ellipse cx="500" cy="500" rx="380" ry="90" transform="rotate(-25 500 500)" stroke-width="7" />
+      <ellipse cx="500" cy="500" rx="420" ry="110" stroke-dasharray="20 12" transform="rotate(-25 500 500)" stroke-width="4" />
+      <path d="M 220 180 A 100 100 0 1 0 320 340 A 80 80 0 1 1 220 180 Z" stroke-width="6" />
+      <circle cx="230" cy="280" r="12" stroke-width="3" />
+      <polygon points="800,220 740,290 830,320" stroke-width="5" />
+      <circle cx="785" cy="275" r="14" stroke-width="4" />
+      <circle cx="340" cy="800" r="30" stroke-width="5" />
+      <circle cx="680" cy="840" r="45" stroke-width="5" />
+    </svg>`,
     durationSeconds: 210
   }
 ];
@@ -150,11 +194,14 @@ export class MatchManager {
   private matches: Map<string, MatchState> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
 
-  createMatch(hostId: string, hostName: string, mode: GameMode = 'coloring', isPublic: boolean = true): MatchState {
+  createMatch(hostId: string, hostName: string, mode: GameMode = 'coloring', isPublic: boolean = true, challengeId?: string): MatchState {
     const id = `match-${Math.random().toString(36).substring(2, 9)}`;
     const lobbyCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 
-    const challenge = BUILT_IN_CHALLENGES.find(c => c.mode === mode) || BUILT_IN_CHALLENGES[0];
+    let challenge = challengeId ? BUILT_IN_CHALLENGES.find(c => c.id === challengeId) : undefined;
+    if (!challenge) {
+      challenge = BUILT_IN_CHALLENGES.find(c => c.mode === mode) || BUILT_IN_CHALLENGES[0];
+    }
 
     const match: MatchState = {
       id,

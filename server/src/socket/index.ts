@@ -12,8 +12,8 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
     // -------------------------------------------------------------
     // LOBBY EVENTS
     // -------------------------------------------------------------
-    socket.on('lobby:create', ({ playerId, username, mode, isPublic }: { playerId: string; username: string; mode?: GameMode; isPublic?: boolean }) => {
-      const match = matchManager.createMatch(playerId, username, mode || 'coloring', isPublic ?? true);
+    socket.on('lobby:create', ({ playerId, username, mode, isPublic, challengeId }: { playerId: string; username: string; mode?: GameMode; isPublic?: boolean; challengeId?: string }) => {
+      const match = matchManager.createMatch(playerId, username, mode || 'coloring', isPublic ?? true, challengeId);
       socketPlayerMap.set(socket.id, { playerId, matchId: match.id });
       socket.join(match.id);
       socket.emit('match:state', match);
@@ -267,23 +267,59 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
     // -------------------------------------------------------------
     // WEBRTC PRIVATE TEAM VOICE SIGNALING
     // -------------------------------------------------------------
-    socket.on('voice:signal', ({ targetPlayerId, signal }: { targetPlayerId: string; signal: any }) => {
-      const senderInfo = socketPlayerMap.get(socket.id);
-      if (!senderInfo || !senderInfo.teamId) return;
+    // -------------------------------------------------------------
+    // CANVAS CLEAR TERRITORY (With player/team synchronization)
+    // -------------------------------------------------------------
+    socket.on('canvas:clear_territory', (data?: { matchId?: string; playerId?: string; teamId?: string }) => {
+      const info = socketPlayerMap.get(socket.id);
+      const matchId = data?.matchId || info?.matchId;
+      const playerId = data?.playerId || info?.playerId;
+      if (!matchId || !playerId) return;
 
-      const match = matchManager.getMatch(senderInfo.matchId);
-      // Voice is strictly disabled during naming phase!
+      const match = matchManager.getMatch(matchId);
+      if (!match || match.phase !== 'playing') return;
+
+      const player = match.players[playerId];
+      const teamId = data?.teamId || info?.teamId || player?.teamId;
+      if (!teamId || !match.teams[teamId]) return;
+
+      const team = match.teams[teamId];
+      team.strokes = team.strokes.filter(s => s.playerId !== playerId);
+
+      io.to(`${matchId}:${teamId}`).emit('canvas:territory_cleared', {
+        playerId,
+        teamId,
+        strokes: team.strokes
+      });
+    });
+
+    // -------------------------------------------------------------
+    // WEBRTC PRIVATE TEAM VOICE SIGNALING
+    // -------------------------------------------------------------
+    socket.on('voice:signal', ({ targetPlayerId, signal, matchId }: { targetPlayerId: string; signal: any; matchId?: string }) => {
+      const senderInfo = socketPlayerMap.get(socket.id);
+      const effectiveMatchId = matchId || senderInfo?.matchId;
+      if (!effectiveMatchId) return;
+
+      const match = matchManager.getMatch(effectiveMatchId);
       if (!match || match.phase === 'naming' || match.phase === 'lobby') return;
+
+      const senderPlayer = senderInfo ? match.players[senderInfo.playerId] : null;
+      const senderTeamId = senderInfo?.teamId || senderPlayer?.teamId;
+      const senderPlayerId = senderInfo?.playerId || senderPlayer?.id;
+      if (!senderTeamId || !senderPlayerId) return;
 
       // Find target socket
       for (const [targetSockId, tInfo] of socketPlayerMap.entries()) {
+        const targetPlayer = match.players[tInfo.playerId];
+        const targetTeamId = tInfo.teamId || targetPlayer?.teamId;
         if (
-          tInfo.matchId === senderInfo.matchId &&
-          tInfo.teamId === senderInfo.teamId &&
+          tInfo.matchId === effectiveMatchId &&
+          targetTeamId === senderTeamId &&
           tInfo.playerId === targetPlayerId
         ) {
           io.to(targetSockId).emit('voice:signal', {
-            senderPlayerId: senderInfo.playerId,
+            senderPlayerId,
             signal
           });
           break;
@@ -291,12 +327,21 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       }
     });
 
-    socket.on('voice:state', ({ isMuted, isDeafened }: { isMuted: boolean; isDeafened: boolean }) => {
+    socket.on('voice:state', ({ isMuted, isDeafened, matchId }: { isMuted: boolean; isDeafened: boolean; matchId?: string }) => {
       const info = socketPlayerMap.get(socket.id);
-      if (!info || !info.teamId) return;
+      const effectiveMatchId = matchId || info?.matchId;
+      if (!effectiveMatchId) return;
 
-      io.to(`${info.matchId}:${info.teamId}`).emit('voice:state_change', {
-        playerId: info.playerId,
+      const match = matchManager.getMatch(effectiveMatchId);
+      if (!match) return;
+
+      const player = info ? match.players[info.playerId] : null;
+      const teamId = info?.teamId || player?.teamId;
+      const playerId = info?.playerId || player?.id;
+      if (!teamId || !playerId) return;
+
+      io.to(`${effectiveMatchId}:${teamId}`).emit('voice:state_change', {
+        playerId,
         isMuted,
         isDeafened
       });

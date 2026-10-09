@@ -56,6 +56,7 @@ export interface DrawStroke {
   points: DrawPoint[];
   timestamp: number;
   sequence: number;
+  tool?: 'brush' | 'eraser' | 'fill';
 }
 
 export interface Challenge {

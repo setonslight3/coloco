@@ -111,9 +111,28 @@ export default function GamePage() {
       });
     };
 
+    const handleTerritoryCleared = ({ teamId, strokes }: any) => {
+      setMatch((prev) => {
+        if (!prev) return null;
+        const team = prev.teams[teamId];
+        if (!team) return prev;
+        return {
+          ...prev,
+          teams: {
+            ...prev.teams,
+            [teamId]: {
+              ...team,
+              strokes: strokes || []
+            }
+          }
+        };
+      });
+    };
+
     socket.on('match:state', handleMatchState);
     socket.on('match:tick', handleTick);
     socket.on('canvas:stroke', handleStroke);
+    socket.on('canvas:territory_cleared', handleTerritoryCleared);
     socket.on('player:done_status', handlePlayerDone);
     socket.on('match:verdict', handleVerdict);
 
@@ -121,6 +140,7 @@ export default function GamePage() {
       socket.off('match:state', handleMatchState);
       socket.off('match:tick', handleTick);
       socket.off('canvas:stroke', handleStroke);
+      socket.off('canvas:territory_cleared', handleTerritoryCleared);
       socket.off('player:done_status', handlePlayerDone);
       socket.off('match:verdict', handleVerdict);
     };
@@ -152,6 +172,15 @@ export default function GamePage() {
 
   const handlePlayerDone = () => {
     socket.emit('player:done');
+  };
+
+  const handleClearTerritory = () => {
+    if (!myPlayer?.teamId) return;
+    socket.emit('canvas:clear_territory', {
+      matchId,
+      playerId,
+      teamId: myPlayer.teamId
+    });
   };
 
   const handleNamingSubmit = (e: React.FormEvent) => {
@@ -282,7 +311,9 @@ export default function GamePage() {
           {myTeam && (
             <VoiceChat
               socket={socket}
+              matchId={matchId}
               teamId={myTeam.id}
+              myPlayerId={playerId}
               teammateIds={myTeam.playerIds.filter(pid => pid !== playerId)}
               isVoiceActive={match.phase === 'playing'}
             />
@@ -320,6 +351,7 @@ export default function GamePage() {
             <Canvas
               strokes={myTeam.strokes}
               onDrawStroke={handleDrawStroke}
+              onClearTerritory={handleClearTerritory}
               myTerritoryIndex={myPlayer?.territoryIndex}
               territories={match.territories}
               isLocked={isMyLocked}
