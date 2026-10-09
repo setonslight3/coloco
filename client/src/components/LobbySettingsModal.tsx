@@ -13,7 +13,11 @@ import {
   Timer,
   Check,
   Dices,
-  ShieldCheck
+  ShieldCheck,
+  Globe,
+  Lock,
+  Heart,
+  Swords
 } from 'lucide-react';
 
 export const CLIENT_CHALLENGES: Challenge[] = [
@@ -143,23 +147,50 @@ interface LobbySettingsModalProps {
     durationSeconds: number;
     namingDurationSeconds: number;
     maxPlayers: number;
+    isPublic: boolean;
   }) => void;
   onClose: () => void;
 }
 
 export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModalProps) {
-  const [mode, setMode] = useState<GameMode>(match.mode);
+  // Determine initial category: if mode is cooperative, category is cooperative; otherwise competitive
+  const isInitialCoop = match.mode === 'cooperative';
+  const [category, setCategory] = useState<'cooperative' | 'competitive'>(isInitialCoop ? 'cooperative' : 'competitive');
+  const [subStyle, setSubStyle] = useState<'coloring' | 'drawing' | 'freestyle'>('coloring');
+  const [isPublic, setIsPublic] = useState<boolean>(match.isPublic ?? true);
   const [challengeId, setChallengeId] = useState<string>(match.challenge.id);
   const [durationSeconds, setDurationSeconds] = useState<number>(match.challenge.durationSeconds || 120);
   const [namingDurationSeconds, setNamingDurationSeconds] = useState<number>(match.namingTimeRemainingSeconds || 20);
-  const [maxPlayers, setMaxPlayers] = useState<number>(match.maxPlayers || 8);
+  const [maxPlayers, setMaxPlayers] = useState<number>(
+    isInitialCoop ? 2 : (match.maxPlayers === 2 ? 4 : (match.maxPlayers || 4))
+  );
 
-  // Challenges matching current selected mode
-  const filteredChallenges = CLIENT_CHALLENGES.filter(c => c.mode === mode);
+  // When category is cooperative, effective mode is 'cooperative'. When competitive, it's subStyle.
+  const effectiveMode: GameMode = category === 'cooperative' ? 'cooperative' : subStyle;
 
-  const handleModeChange = (newMode: GameMode) => {
-    setMode(newMode);
-    const firstChallenge = CLIENT_CHALLENGES.find(c => c.mode === newMode);
+  // Challenges matching current selection
+  const filteredChallenges = category === 'cooperative'
+    ? CLIENT_CHALLENGES.filter(c => c.mode === 'cooperative' || c.mode === subStyle)
+    : CLIENT_CHALLENGES.filter(c => c.mode === subStyle);
+
+  const handleCategoryChange = (newCat: 'cooperative' | 'competitive') => {
+    setCategory(newCat);
+    if (newCat === 'cooperative') {
+      setMaxPlayers(2);
+      const coopChal = CLIENT_CHALLENGES.find(c => c.mode === 'cooperative') || CLIENT_CHALLENGES[0];
+      setChallengeId(coopChal.id);
+      setDurationSeconds(coopChal.durationSeconds);
+    } else {
+      if (maxPlayers <= 2) setMaxPlayers(4);
+      const subChal = CLIENT_CHALLENGES.find(c => c.mode === subStyle) || CLIENT_CHALLENGES[0];
+      setChallengeId(subChal.id);
+      setDurationSeconds(subChal.durationSeconds);
+    }
+  };
+
+  const handleSubStyleChange = (newStyle: 'coloring' | 'drawing' | 'freestyle') => {
+    setSubStyle(newStyle);
+    const firstChallenge = CLIENT_CHALLENGES.find(c => c.mode === newStyle);
     if (firstChallenge) {
       setChallengeId(firstChallenge.id);
       setDurationSeconds(firstChallenge.durationSeconds);
@@ -170,7 +201,6 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
     const list = filteredChallenges.length > 0 ? filteredChallenges : CLIENT_CHALLENGES;
     const random = list[Math.floor(Math.random() * list.length)];
     if (random) {
-      setMode(random.mode);
       setChallengeId(random.id);
       setDurationSeconds(random.durationSeconds);
     }
@@ -179,11 +209,12 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
-      mode,
+      mode: effectiveMode,
       challengeId,
       durationSeconds,
       namingDurationSeconds,
-      maxPlayers
+      maxPlayers: category === 'cooperative' ? 2 : maxPlayers,
+      isPublic
     });
     onClose();
   };
@@ -216,34 +247,114 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Section 1: Mode Switcher */}
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+          {/* Section 0: Lobby Visibility (Public vs Private) */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-sky-500" />
+              Lobby Privacy
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPublic(true)}
+                className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all ${
+                  isPublic
+                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/40 shadow-xs'
+                    : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <Globe className="w-4 h-4 text-emerald-500" />
+                <div className="text-left">
+                  <div className="font-black">Public Lobby</div>
+                  <div className="text-[10px] font-normal text-slate-500">Visible in lobby browser</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPublic(false)}
+                className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all ${
+                  !isPublic
+                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/40 shadow-xs'
+                    : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <Lock className="w-4 h-4 text-amber-500" />
+                <div className="text-left">
+                  <div className="font-black">Private Lobby</div>
+                  <div className="text-[10px] font-normal text-slate-500">Invite code only</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Section 1: Main Game Mode (Cooperative vs Competitive) */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-              Game Mode
+              Main Game Mode
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('cooperative')}
+                className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all ${
+                  category === 'cooperative'
+                    ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/40 ring-2 ring-pink-500/40 text-pink-700 dark:text-pink-300'
+                    : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-sky-300'
+                }`}
+              >
+                <Heart className="w-4 h-4 text-pink-500 flex-shrink-0" />
+                <div>
+                  <div className="text-xs font-black">Cooperative (Friendly)</div>
+                  <div className="text-[10px] text-slate-500">Paint together on 1 canvas (2 players)</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('competitive')}
+                className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all ${
+                  category === 'competitive'
+                    ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/40 ring-2 ring-sky-500/40 text-sky-700 dark:text-sky-300'
+                    : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-sky-300'
+                }`}
+              >
+                <Swords className="w-4 h-4 text-sky-500 flex-shrink-0" />
+                <div>
+                  <div className="text-xs font-black">Competitive (Team Arena)</div>
+                  <div className="text-[10px] text-slate-500">Team vs Team showdown (4, 6, 8 players)</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Section 2: Sub-Art Style */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+              Art Style
+            </label>
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'coloring', label: 'Coloring', icon: Palette },
-                { id: 'drawing', label: 'Drawing', icon: Brush },
-                { id: 'freestyle', label: 'Freestyle', icon: Sparkles },
-                { id: 'cooperative', label: 'Co-op (Friendly)', icon: Users }
-              ].map((m) => {
-                const Icon = m.icon;
-                const isSelected = mode === m.id;
+                { id: 'coloring', label: 'Coloring', icon: Palette, desc: 'Shared line art' },
+                { id: 'drawing', label: 'Drawing', icon: Brush, desc: 'Reference guide' },
+                { id: 'freestyle', label: 'Freestyle', icon: Sparkles, desc: 'Open theme' }
+              ].map((s) => {
+                const Icon = s.icon;
+                const isSelected = subStyle === s.id;
                 return (
                   <button
-                    key={m.id}
+                    key={s.id}
                     type="button"
-                    onClick={() => handleModeChange(m.id as GameMode)}
-                    className={`flex items-center justify-center gap-1.5 p-2.5 rounded-2xl border text-xs font-bold transition-all ${
+                    onClick={() => handleSubStyleChange(s.id as any)}
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-center transition-all ${
                       isSelected
                         ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-300 ring-2 ring-sky-500/40 shadow-xs'
                         : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-sky-300'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{m.label}</span>
+                    <Icon className="w-4 h-4 mb-1" />
+                    <span className="text-xs font-extrabold">{s.label}</span>
+                    <span className="text-[10px] text-slate-400">{s.desc}</span>
                   </button>
                 );
               })}
@@ -369,27 +480,38 @@ export function LobbySettingsModal({ match, onSave, onClose }: LobbySettingsModa
               <Users className="w-3.5 h-3.5 text-sky-500" />
               Lobby Capacity
             </label>
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { count: 2, label: '2 (1v1 Duel)' },
-                { count: 4, label: '4 (2v2 Team)' },
-                { count: 6, label: '6 (3v3 Team)' },
-                { count: 8, label: '8 (4v4 Epic)' }
-              ].map((opt) => (
-                <button
-                  key={opt.count}
-                  type="button"
-                  onClick={() => setMaxPlayers(opt.count)}
-                  className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all text-center ${
-                    maxPlayers === opt.count
-                      ? 'border-sky-500 bg-sky-500 text-white shadow-xs'
-                      : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:border-sky-300'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            {category === 'cooperative' ? (
+              <div className="p-3 rounded-2xl border border-pink-200 dark:border-pink-900/60 bg-pink-50/60 dark:bg-pink-950/30 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-pink-900 dark:text-pink-200">2 Players (Co-op Duo)</div>
+                  <div className="text-[11px] text-pink-700/80 dark:text-pink-300/80">Cooperative mode is built for 2 friends to paint together on 1 canvas</div>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl bg-pink-500 text-white font-black text-xs">
+                  Fixed: 2
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { count: 4, label: '4 (2v2 Team)' },
+                  { count: 6, label: '6 (3v3 Team)' },
+                  { count: 8, label: '8 (4v4 Epic)' }
+                ].map((opt) => (
+                  <button
+                    key={opt.count}
+                    type="button"
+                    onClick={() => setMaxPlayers(opt.count)}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all text-center ${
+                      maxPlayers === opt.count
+                        ? 'border-sky-500 bg-sky-500 text-white shadow-xs'
+                        : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:border-sky-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Footer Submit Action */}

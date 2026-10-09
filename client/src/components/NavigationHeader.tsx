@@ -40,44 +40,48 @@ export function NavigationHeader() {
       <header className="sticky top-0 z-40 w-full border-b border-sky-200/60 dark:border-navy-800 bg-white/80 dark:bg-navy-900/80 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between">
         <BrandLogo size={42} />
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Hall of Fame / Leaderboard Button */}
+        <div className="flex items-center gap-2">
+          {/* Hall of Fame / Leaderboard Icon Button */}
           <button
             type="button"
             onClick={() => setIsLeaderboardOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800/80 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all shadow-xs"
-            title="View Leaderboards"
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-amber-300 dark:border-amber-800/80 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+            title="Leaderboards"
+            aria-label="Leaderboards"
           >
-            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden sm:inline">Leaderboard</span>
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <span className="hidden md:inline">Leaderboard</span>
           </button>
 
           {/* User Profile / Auth State */}
           {currentUser ? (
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-navy-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-navy-800 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-navy-700">
               <div className="w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center text-[10px] font-black">
                 {username.charAt(0).toUpperCase()}
               </div>
-              <span className="text-xs font-bold text-slate-800 dark:text-white max-w-[100px] truncate">
+              <span className="hidden sm:inline text-xs font-bold text-slate-800 dark:text-white max-w-[80px] truncate">
                 {username}
               </span>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="text-slate-400 hover:text-rose-500 transition-colors ml-1"
+                className="text-slate-400 hover:text-rose-500 transition-colors p-0.5"
                 title="Sign Out"
+                aria-label="Sign Out"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           ) : (
             <button
               type="button"
               onClick={() => setIsAuthOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-200 dark:border-navy-700 bg-white dark:bg-navy-800 hover:bg-sky-50 text-sky-600 dark:text-sky-400 text-xs font-bold transition-all shadow-xs"
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-sky-200 dark:border-navy-700 bg-white dark:bg-navy-800 hover:bg-sky-50 text-sky-600 dark:text-sky-400 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              title="Sign In"
+              aria-label="Sign In"
             >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Sign In</span>
+              <LogIn className="w-4 h-4" />
+              <span className="hidden md:inline">Sign In</span>
             </button>
           )}
 

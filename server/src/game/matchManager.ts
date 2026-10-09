@@ -16,6 +16,7 @@ export interface LobbySettingsPayload {
   durationSeconds?: number;
   namingDurationSeconds?: number;
   maxPlayers?: number;
+  isPublic?: boolean;
 }
 
 // Predefined challenges across all modes
@@ -149,7 +150,7 @@ export class MatchManager {
   private matches: Map<string, MatchState> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
 
-  createMatch(hostId: string, hostName: string, mode: GameMode = 'coloring'): MatchState {
+  createMatch(hostId: string, hostName: string, mode: GameMode = 'coloring', isPublic: boolean = true): MatchState {
     const id = `match-${Math.random().toString(36).substring(2, 9)}`;
     const lobbyCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 
@@ -161,6 +162,7 @@ export class MatchManager {
       mode,
       phase: 'lobby',
       hostId,
+      isPublic,
       players: {
         [hostId]: {
           id: hostId,
@@ -176,12 +178,41 @@ export class MatchManager {
       timeRemainingSeconds: challenge.durationSeconds,
       namingTimeRemainingSeconds: 20, // 20 seconds preparation & naming
       revealTimeRemainingSeconds: 25, // 25 seconds score-hidden reveal
-      maxPlayers: 8,
+      maxPlayers: mode === 'cooperative' ? 2 : 4,
       telemetry: []
     };
 
     this.matches.set(id, match);
     return match;
+  }
+
+  getPublicLobbies(): Array<{
+    id: string;
+    lobbyCode: string;
+    mode: GameMode;
+    hostName: string;
+    challengeTitle: string;
+    playerCount: number;
+    maxPlayers: number;
+    phase: MatchPhase;
+  }> {
+    const list = [];
+    for (const match of this.matches.values()) {
+      if (match.isPublic && match.phase === 'lobby') {
+        const host = match.players[match.hostId];
+        list.push({
+          id: match.id,
+          lobbyCode: match.lobbyCode,
+          mode: match.mode,
+          hostName: host?.username || 'Host',
+          challengeTitle: match.challenge.title,
+          playerCount: Object.keys(match.players).length,
+          maxPlayers: match.maxPlayers,
+          phase: match.phase
+        });
+      }
+    }
+    return list;
   }
 
   getMatch(id: string): MatchState | undefined {
@@ -285,6 +316,10 @@ export class MatchManager {
 
     if (settings.namingDurationSeconds && settings.namingDurationSeconds >= 10 && settings.namingDurationSeconds <= 60) {
       match.namingTimeRemainingSeconds = settings.namingDurationSeconds;
+    }
+
+    if (settings.isPublic !== undefined) {
+      match.isPublic = settings.isPublic;
     }
 
     if (settings.maxPlayers && settings.maxPlayers >= 2 && settings.maxPlayers <= 16) {

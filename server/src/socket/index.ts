@@ -12,17 +12,25 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
     // -------------------------------------------------------------
     // LOBBY EVENTS
     // -------------------------------------------------------------
-    socket.on('lobby:create', ({ playerId, username, mode }: { playerId: string; username: string; mode?: GameMode }) => {
-      const match = matchManager.createMatch(playerId, username, mode || 'coloring');
+    socket.on('lobby:create', ({ playerId, username, mode, isPublic }: { playerId: string; username: string; mode?: GameMode; isPublic?: boolean }) => {
+      const match = matchManager.createMatch(playerId, username, mode || 'coloring', isPublic ?? true);
       socketPlayerMap.set(socket.id, { playerId, matchId: match.id });
       socket.join(match.id);
       socket.emit('match:state', match);
+      io.emit('lobby:list_updated', matchManager.getPublicLobbies());
     });
 
-    socket.on('lobby:join', ({ playerId, username, lobbyCode }: { playerId: string; username: string; lobbyCode: string }) => {
-      const match = matchManager.getMatchByCode(lobbyCode);
+    socket.on('lobby:get_public', () => {
+      socket.emit('lobby:list', matchManager.getPublicLobbies());
+    });
+
+    socket.on('lobby:join', ({ playerId, username, lobbyCode, matchId }: { playerId: string; username: string; lobbyCode?: string; matchId?: string }) => {
+      let match = matchId ? matchManager.getMatch(matchId) : undefined;
+      if (!match && lobbyCode) {
+        match = matchManager.getMatchByCode(lobbyCode);
+      }
       if (!match) {
-        socket.emit('error:message', { message: `Lobby code "${lobbyCode}" not found.` });
+        socket.emit('error:message', { message: lobbyCode ? `Lobby code "${lobbyCode}" not found.` : 'Lobby not found.' });
         return;
       }
 
@@ -35,6 +43,7 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       socketPlayerMap.set(socket.id, { playerId, matchId: match.id });
       socket.join(match.id);
       io.to(match.id).emit('match:state', updated);
+      io.emit('lobby:list_updated', matchManager.getPublicLobbies());
     });
 
     socket.on('lobby:ready', ({ isReady }: { isReady: boolean }) => {
@@ -70,6 +79,7 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       if (!deleted && match) {
         io.to(match.id).emit('match:state', match);
       }
+      io.emit('lobby:list_updated', matchManager.getPublicLobbies());
     });
 
     socket.on('lobby:update_settings', (settings: any) => {
@@ -79,6 +89,7 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       const updated = matchManager.updateLobbySettings(info.matchId, info.playerId, settings);
       if (updated) {
         io.to(info.matchId).emit('match:state', updated);
+        io.emit('lobby:list_updated', matchManager.getPublicLobbies());
       }
     });
 

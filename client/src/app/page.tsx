@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '../lib/socket';
-import { MatchState, GameMode } from '../types/index';
+import { MatchState, GameMode, PublicLobbySummary } from '../types/index';
 import {
   Palette,
   Brush,
@@ -19,7 +19,12 @@ import {
   Clock,
   Settings,
   LogOut,
-  Heart
+  Heart,
+  Swords,
+  Globe,
+  Lock,
+  RefreshCw,
+  Search
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo';
 import { LobbySettingsModal } from '../components/LobbySettingsModal';
@@ -35,14 +40,21 @@ export default function Home() {
   const socket = getSocket();
 
   const [username, setUsername] = useState('');
-  const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'browse' | 'join'>('create');
   const [lobbyCodeInput, setLobbyCodeInput] = useState('');
-  const [selectedMode, setSelectedMode] = useState<GameMode>('coloring');
+  const [mainCategory, setMainCategory] = useState<'cooperative' | 'competitive'>('cooperative');
+  const [subArtStyle, setSubArtStyle] = useState<'coloring' | 'drawing' | 'freestyle'>('coloring');
+  const [isLobbyPublic, setIsLobbyPublic] = useState(true);
   const [activeMatch, setActiveMatch] = useState<MatchState | null>(null);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [publicLobbies, setPublicLobbies] = useState<PublicLobbySummary[]>([]);
+  const [isFetchingLobbies, setIsFetchingLobbies] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+
+  const effectiveMode: GameMode = mainCategory === 'cooperative' ? 'cooperative' : subArtStyle;
 
   // Initialize player identity
   useEffect(() => {
@@ -77,16 +89,34 @@ export default function Home() {
       setActiveMatch(null);
     };
 
+    const handleLobbyList = (lobbies: PublicLobbySummary[]) => {
+      setPublicLobbies(lobbies || []);
+      setIsFetchingLobbies(false);
+    };
+
     socket.on('match:state', handleMatchState);
     socket.on('match:left', handleMatchLeft);
     socket.on('error:message', handleError);
+    socket.on('lobby:list', handleLobbyList);
+    socket.on('lobby:list_updated', handleLobbyList);
+
+    // Initial public lobby fetch
+    socket.emit('lobby:get_public');
 
     return () => {
       socket.off('match:state', handleMatchState);
       socket.off('match:left', handleMatchLeft);
       socket.off('error:message', handleError);
+      socket.off('lobby:list', handleLobbyList);
+      socket.off('lobby:list_updated', handleLobbyList);
     };
   }, [router, socket]);
+
+  const handleRefreshLobbies = () => {
+    setIsFetchingLobbies(true);
+    socket.emit('lobby:get_public');
+    setTimeout(() => setIsFetchingLobbies(false), 800);
+  };
 
   const handleLeaveLobby = () => {
     socket.emit('lobby:leave');
@@ -108,7 +138,12 @@ export default function Home() {
 
   const handleCreateLobby = () => {
     if (!username.trim() || !playerId) return;
-    socket.emit('lobby:create', { playerId, username: username.trim(), mode: selectedMode });
+    socket.emit('lobby:create', {
+      playerId,
+      username: username.trim(),
+      mode: effectiveMode,
+      isPublic: isLobbyPublic
+    });
   };
 
   const handleJoinLobby = (e: React.FormEvent) => {
@@ -118,6 +153,16 @@ export default function Home() {
       playerId,
       username: username.trim(),
       lobbyCode: lobbyCodeInput.trim().toUpperCase()
+    });
+  };
+
+  const handleJoinPublicLobby = (lobby: PublicLobbySummary) => {
+    if (!username.trim() || !playerId) return;
+    socket.emit('lobby:join', {
+      playerId,
+      username: username.trim(),
+      matchId: lobby.id,
+      lobbyCode: lobby.lobbyCode
     });
   };
 
@@ -147,9 +192,21 @@ export default function Home() {
     durationSeconds: number;
     namingDurationSeconds: number;
     maxPlayers: number;
+    isPublic: boolean;
   }) => {
     socket.emit('lobby:update_settings', settings);
   };
+
+  const filteredPublicLobbies = publicLobbies.filter((lob) => {
+    if (!searchFilter.trim()) return true;
+    const q = searchFilter.toLowerCase();
+    return (
+      lob.lobbyCode.toLowerCase().includes(q) ||
+      lob.hostName.toLowerCase().includes(q) ||
+      lob.challengeTitle.toLowerCase().includes(q) ||
+      lob.mode.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="flex flex-col items-center justify-center w-full max-w-4xl px-2 sm:px-4 py-4 sm:py-8">
@@ -201,7 +258,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Segmented Tab Switcher */}
+            {/* Segmented 3-Tab Switcher */}
             <div className="flex p-1 bg-slate-100 dark:bg-navy-800 rounded-2xl mb-6">
               <button
                 type="button"
@@ -216,6 +273,23 @@ export default function Home() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setActiveTab('browse');
+                  handleRefreshLobbies();
+                }}
+                className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'browse'
+                    ? 'bg-white dark:bg-navy-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+                }`}
+              >
+                <span>Browse</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300">
+                  {publicLobbies.length}
+                </span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab('join')}
                 className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
                   activeTab === 'join'
@@ -223,79 +297,137 @@ export default function Home() {
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
                 }`}
               >
-                Join with Code
+                Join Code
               </button>
             </div>
 
             {/* Tab 1: Create Match */}
-            {activeTab === 'create' ? (
-              <div className="space-y-6 text-left animate-fadeIn">
-                {/* Game Mode Cards */}
+            {activeTab === 'create' && (
+              <div className="space-y-5 text-left animate-fadeIn">
+                {/* Mode Category: Cooperative vs Competitive */}
                 <div>
-                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5">
-                    Select Competition Mode
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                    1. Choose Game Mode
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setMainCategory('cooperative')}
+                      className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
+                        mainCategory === 'cooperative'
+                          ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/40 ring-2 ring-pink-500/50 shadow-xs'
+                          : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 hover:border-pink-300'
+                      }`}
+                    >
+                      <div className="p-2 rounded-xl bg-pink-100 dark:bg-pink-950 text-pink-500 flex-shrink-0">
+                        <Heart className="w-5 h-5 fill-current" />
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                          Cooperative (Friendly)
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-pink-500 text-white font-black">2 Players</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          No competition. 2 friends color or draw together on 1 canvas with voice & chat!
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMainCategory('competitive')}
+                      className={`flex items-start gap-3 p-3.5 rounded-2xl border text-left transition-all ${
+                        mainCategory === 'competitive'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/40 ring-2 ring-sky-500/50 shadow-xs'
+                          : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 hover:border-sky-300'
+                      }`}
+                    >
+                      <div className="p-2 rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-500 flex-shrink-0">
+                        <Swords className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                          Competitive (Arena)
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-sky-500 text-white font-black">Teams</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Team vs Team showdown (2v2, 3v3, 4v4). Google Gemini AI judges the winning team!
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-Art Style Selector (Coloring, Drawing, Freestyle) */}
+                <div>
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                    2. Choose Art Style
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
                     {[
-                      {
-                        id: 'coloring',
-                        label: 'Coloring',
-                        icon: Palette,
-                        desc: 'Color shared line art template.'
-                      },
-                      {
-                        id: 'drawing',
-                        label: 'Drawing',
-                        icon: Brush,
-                        desc: 'Guided reference image window.'
-                      },
-                      {
-                        id: 'freestyle',
-                        label: 'Freestyle',
-                        icon: Sparkles,
-                        desc: 'Open creative interpretation prompt.'
-                      },
-                      {
-                        id: 'cooperative',
-                        label: 'Co-op (Friendly)',
-                        icon: Heart,
-                        desc: 'Paint together on 1 canvas with voice & chat.'
-                      }
-                    ].map((m) => {
-                      const Icon = m.icon;
-                      const isSelected = selectedMode === m.id;
+                      { id: 'coloring', label: 'Coloring', icon: Palette, desc: 'Line art' },
+                      { id: 'drawing', label: 'Drawing', icon: Brush, desc: 'Reference' },
+                      { id: 'freestyle', label: 'Freestyle', icon: Sparkles, desc: 'Creative' }
+                    ].map((s) => {
+                      const Icon = s.icon;
+                      const isSelected = subArtStyle === s.id;
                       return (
                         <button
-                          key={m.id}
+                          key={s.id}
                           type="button"
-                          onClick={() => setSelectedMode(m.id as GameMode)}
-                          className={`flex flex-col p-3 rounded-2xl border text-left transition-all ${
+                          onClick={() => setSubArtStyle(s.id as any)}
+                          className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all ${
                             isSelected
-                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/40 ring-2 ring-sky-500/50 shadow-xs'
-                              : 'border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-800 hover:border-sky-300'
+                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-300 ring-2 ring-sky-500/40 shadow-xs'
+                              : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400 hover:border-sky-300'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-2">
-                            <Icon className={`w-5 h-5 ${isSelected ? 'text-sky-500' : 'text-slate-400'}`} />
-                            <span
-                              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                isSelected
-                                  ? 'bg-sky-500 text-white'
-                                  : 'bg-slate-100 dark:bg-navy-700 text-slate-500'
-                              }`}
-                            >
-                              {m.id}
-                            </span>
-                          </div>
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                            {m.label}
-                          </span>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                            {m.desc}
-                          </span>
+                          <Icon className="w-4 h-4 mb-1" />
+                          <span className="text-xs font-extrabold">{s.label}</span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">{s.desc}</span>
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Privacy Toggle: Public vs Private */}
+                <div>
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                    3. Lobby Privacy
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsLobbyPublic(true)}
+                      className={`flex items-center gap-2.5 p-3 rounded-2xl border transition-all ${
+                        isLobbyPublic
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/40 shadow-xs'
+                          : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <Globe className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                      <div className="text-left">
+                        <div className="text-xs font-bold">Public Lobby</div>
+                        <div className="text-[10px] text-slate-400">Open in lobby browser</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsLobbyPublic(false)}
+                      className={`flex items-center gap-2.5 p-3 rounded-2xl border transition-all ${
+                        !isLobbyPublic
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/40 shadow-xs'
+                          : 'border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <Lock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <div className="text-left">
+                        <div className="text-xs font-bold">Private Lobby</div>
+                        <div className="text-[10px] text-slate-400">Room code only</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
@@ -305,11 +437,103 @@ export default function Home() {
                   className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 via-sky-500 to-teal-500 hover:opacity-95 text-white font-black text-base shadow-lg shadow-sky-500/25 transition-transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
                 >
                   <Play className="w-5 h-5 fill-current" />
-                  Launch Competition Lobby
+                  Launch {mainCategory === 'cooperative' ? 'Cooperative' : 'Arena'} Lobby
                 </button>
               </div>
-            ) : (
-              /* Tab 2: Join Match */
+            )}
+
+            {/* Tab 2: Public Lobby Browser */}
+            {activeTab === 'browse' && (
+              <div className="space-y-4 text-left animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      placeholder="Filter by host, mode, or challenge..."
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRefreshLobbies}
+                    className="p-2 rounded-xl border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100"
+                    title="Refresh Lobbies"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isFetchingLobbies ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {filteredPublicLobbies.length === 0 ? (
+                  <div className="py-10 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-slate-200 dark:border-navy-700 rounded-2xl bg-slate-50/50 dark:bg-navy-800/30">
+                    <Globe className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      No open public lobbies found right now.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('create')}
+                      className="mt-1 px-4 py-1.5 rounded-xl bg-sky-500 text-white font-bold text-xs hover:bg-sky-600"
+                    >
+                      Host a Public Lobby
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {filteredPublicLobbies.map((lob) => {
+                      const isCoop = lob.mode === 'cooperative';
+                      return (
+                        <div
+                          key={lob.id}
+                          className="p-3 rounded-2xl border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800/80 hover:border-sky-300 transition-all flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span
+                                className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                  isCoop
+                                    ? 'bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300'
+                                    : 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
+                                }`}
+                              >
+                                {isCoop ? 'Co-op' : 'Arena'}
+                              </span>
+                              <span className="font-mono text-xs font-bold text-slate-400">
+                                #{lob.lobbyCode}
+                              </span>
+                            </div>
+                            <div className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                              {lob.challengeTitle}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                              <span>Host: {lob.hostName}</span>
+                              <span>•</span>
+                              <span className="flex items-center gap-0.5 font-bold">
+                                <Users className="w-3 h-3" /> {lob.playerCount}/{lob.maxPlayers}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleJoinPublicLobby(lob)}
+                            disabled={lob.playerCount >= lob.maxPlayers}
+                            className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-black text-xs shadow-xs transition-transform active:scale-95 flex-shrink-0"
+                          >
+                            {lob.playerCount >= lob.maxPlayers ? 'Full' : 'Join'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 3: Join with 4-Letter Code */}
+            {activeTab === 'join' && (
               <form onSubmit={handleJoinLobby} className="space-y-4 animate-fadeIn">
                 <div className="text-left">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
@@ -363,12 +587,26 @@ export default function Home() {
           <div className="w-full bg-slate-50 dark:bg-navy-800/60 border border-slate-200/80 dark:border-navy-700 rounded-2xl p-4 mb-6">
             <div className="flex items-start justify-between gap-3 mb-2.5">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
-                    Selected Challenge
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                    activeMatch.mode === 'cooperative'
+                      ? 'bg-pink-500 text-white'
+                      : 'bg-sky-500 text-white'
+                  }`}>
+                    {activeMatch.mode === 'cooperative' ? 'Cooperative' : activeMatch.mode}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-500 text-white">
-                    {activeMatch.mode}
+                  <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white dark:bg-navy-700 border border-slate-200 dark:border-navy-600 text-slate-600 dark:text-slate-300">
+                    {activeMatch.isPublic ? (
+                      <>
+                        <Globe className="w-3 h-3 text-emerald-500" />
+                        <span>Public</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3 text-amber-500" />
+                        <span>Private</span>
+                      </>
+                    )}
                   </span>
                 </div>
                 <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm sm:text-base truncate">
@@ -383,11 +621,12 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-600 dark:text-sky-300 font-bold text-xs shadow-xs transition-all flex-shrink-0"
+                  className="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-600 dark:text-sky-300 font-bold text-xs shadow-xs transition-all flex-shrink-0 flex items-center gap-1.5"
                   title="Configure Lobby Settings"
+                  aria-label="Configure Lobby Settings"
                 >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Edit Settings</span>
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">Settings</span>
                 </button>
               )}
             </div>
@@ -404,7 +643,7 @@ export default function Home() {
               </span>
               <span className="flex items-center gap-1 bg-white dark:bg-navy-700/80 px-2 py-0.5 rounded-lg border border-slate-200/60 dark:border-navy-600">
                 <Users className="w-3 h-3 text-indigo-500" />
-                Cap: {activeMatch.maxPlayers || 8} painters
+                Cap: {activeMatch.maxPlayers || (activeMatch.mode === 'cooperative' ? 2 : 4)} painters
               </span>
             </div>
           </div>

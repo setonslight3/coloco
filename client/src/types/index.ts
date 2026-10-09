@@ -95,6 +95,7 @@ export interface MatchState {
   mode: GameMode;
   phase: MatchPhase;
   hostId: string;
+  isPublic: boolean;
   players: { [id: string]: Player };
   teams: { [id: string]: Team };
   territories: TerritoryBoundary[];
@@ -104,4 +105,15 @@ export interface MatchState {
   revealTimeRemainingSeconds: number;
   results?: TeamScoreResult[];
   maxPlayers: number;
+}
+
+export interface PublicLobbySummary {
+  id: string;
+  lobbyCode: string;
+  mode: GameMode;
+  hostName: string;
+  challengeTitle: string;
+  playerCount: number;
+  maxPlayers: number;
+  phase: MatchPhase;
 }

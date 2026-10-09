@@ -107,6 +107,7 @@ export interface MatchState {
   mode: GameMode;
   phase: MatchPhase;
   hostId: string;
+  isPublic: boolean;
   players: { [id: string]: Player };
   teams: { [id: string]: Team };
   territories: TerritoryBoundary[];
