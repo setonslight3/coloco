@@ -10,13 +10,22 @@ import {
 } from '../types/index.js';
 import { validateStrokeTerritory, generateTerritoryBoundaries } from './territory.js';
 
-// Predefined challenges
+export interface LobbySettingsPayload {
+  mode?: GameMode;
+  challengeId?: string;
+  durationSeconds?: number;
+  namingDurationSeconds?: number;
+  maxPlayers?: number;
+}
+
+// Predefined challenges across all modes
 export const BUILT_IN_CHALLENGES: Challenge[] = [
+  // --- COLORING CHALLENGES ---
   {
     id: 'ch-coloring-owl',
     mode: 'coloring',
     title: 'The Starlit Owl',
-    description: 'Color the wise guardian of the night forest. Don’t be afraid to add cosmic effects!',
+    description: 'Color the wise guardian of the night forest. Add celestial glow and starry plumage!',
     templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
       <path d="M 500 150 C 350 150 250 300 250 600 C 250 800 350 900 500 900 C 650 900 750 800 750 600 C 750 300 650 150 500 150 Z" />
       <circle cx="400" cy="400" r="80" stroke-width="8" />
@@ -26,9 +35,44 @@ export const BUILT_IN_CHALLENGES: Challenge[] = [
       <polygon points="500,480 470,550 530,550" />
       <path d="M 300 650 Q 500 750 700 650" />
       <path d="M 350 700 Q 500 800 650 700" />
+      <circle cx="500" cy="500" r="400" stroke-dasharray="20 15" stroke-width="3" />
     </svg>`,
     durationSeconds: 120
   },
+  {
+    id: 'ch-coloring-mandala',
+    mode: 'coloring',
+    title: 'Sacred Cosmic Mandala',
+    description: 'Intricate interlocking rings, lotus petals, and radiant energy rays.',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="5">
+      <circle cx="500" cy="500" r="100" />
+      <circle cx="500" cy="500" r="220" stroke-dasharray="15 10" />
+      <circle cx="500" cy="500" r="350" />
+      <circle cx="500" cy="500" r="450" stroke-dasharray="25 15" />
+      <polygon points="500,150 850,500 500,850 150,500" />
+      <polygon points="500,100 800,750 200,750" />
+      <polygon points="500,900 200,250 800,250" />
+      <circle cx="500" cy="500" r="30" fill="currentColor" />
+    </svg>`,
+    durationSeconds: 120
+  },
+  {
+    id: 'ch-coloring-turtle',
+    mode: 'coloring',
+    title: 'Reef Guardian Turtle',
+    description: 'An ancient sea turtle gliding above glowing sea corals and bubbles.',
+    templateLineArtSvg: `<svg viewBox="0 0 1000 1000" fill="none" stroke="currentColor" stroke-width="6">
+      <ellipse cx="500" cy="500" rx="260" ry="340" />
+      <path d="M 500 160 C 500 80 440 60 440 30 C 440 10 560 10 560 30 C 560 60 500 80 500 160" />
+      <path d="M 280 300 C 120 200 40 260 60 380 C 100 420 200 400 260 380" />
+      <path d="M 720 300 C 880 200 960 260 940 380 C 900 420 800 400 740 380" />
+      <path d="M 320 720 C 180 820 180 920 240 940 C 280 940 340 880 360 800" />
+      <path d="M 680 720 C 820 820 820 920 760 940 C 720 940 660 880 640 800" />
+    </svg>`,
+    durationSeconds: 150
+  },
+
+  // --- DRAWING CHALLENGES ---
   {
     id: 'ch-drawing-lighthouse',
     mode: 'drawing',
@@ -38,11 +82,43 @@ export const BUILT_IN_CHALLENGES: Challenge[] = [
     durationSeconds: 150
   },
   {
+    id: 'ch-drawing-mountain',
+    mode: 'drawing',
+    title: 'Alpine Golden Dawn',
+    description: 'A majestic snow-capped mountain range greeting the first warm rays of sunrise.',
+    referenceImageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80',
+    durationSeconds: 150
+  },
+  {
+    id: 'ch-drawing-cyberpunk',
+    mode: 'drawing',
+    title: 'Neon Metropolis Skyline',
+    description: 'Towering skyscraper silhouettes drenched in violet and electric cyan neon light.',
+    referenceImageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800&auto=format&fit=crop&q=80',
+    durationSeconds: 180
+  },
+
+  // --- FREESTYLE CHALLENGES ---
+  {
     id: 'ch-freestyle-retro-future',
     mode: 'freestyle',
     title: 'Retro Cyberpunk Diner',
-    description: 'Blend 80s neon nostalgia with futuristic space vehicles and glowing signs.',
+    description: 'Blend 80s chrome and neon diner aesthetics with hovering flying cars and holograms.',
     durationSeconds: 180
+  },
+  {
+    id: 'ch-freestyle-nebula-flora',
+    mode: 'freestyle',
+    title: 'Alien Moon Flora',
+    description: 'Invent bioluminescent extraterrestrial trees, giant fungal spires, and glowing spores.',
+    durationSeconds: 180
+  },
+  {
+    id: 'ch-freestyle-steampunk-city',
+    mode: 'freestyle',
+    title: 'Aetherial Cloud Fortress',
+    description: 'A floating brass citadel propelled by giant rotating cogs, propellers, and billowing steam.',
+    durationSeconds: 210
   }
 ];
 
@@ -127,13 +203,43 @@ export class MatchManager {
   }
 
   setGameMode(matchId: string, hostId: string, mode: GameMode): MatchState | null {
+    return this.updateLobbySettings(matchId, hostId, { mode });
+  }
+
+  updateLobbySettings(matchId: string, hostId: string, settings: LobbySettingsPayload): MatchState | null {
     const match = this.matches.get(matchId);
     if (!match || match.hostId !== hostId || match.phase !== 'lobby') return null;
 
-    match.mode = mode;
-    const challenge = BUILT_IN_CHALLENGES.find(c => c.mode === mode) || BUILT_IN_CHALLENGES[0];
-    match.challenge = challenge;
-    match.timeRemainingSeconds = challenge.durationSeconds;
+    if (settings.mode) {
+      match.mode = settings.mode;
+    }
+
+    if (settings.challengeId) {
+      const found = BUILT_IN_CHALLENGES.find(c => c.id === settings.challengeId);
+      if (found) {
+        match.challenge = { ...found };
+        match.mode = found.mode;
+      }
+    } else if (settings.mode && match.challenge.mode !== settings.mode) {
+      const defaultForMode = BUILT_IN_CHALLENGES.find(c => c.mode === settings.mode) || BUILT_IN_CHALLENGES[0];
+      match.challenge = { ...defaultForMode };
+    }
+
+    if (settings.durationSeconds && settings.durationSeconds >= 30 && settings.durationSeconds <= 600) {
+      match.challenge.durationSeconds = settings.durationSeconds;
+      match.timeRemainingSeconds = settings.durationSeconds;
+    } else {
+      match.timeRemainingSeconds = match.challenge.durationSeconds;
+    }
+
+    if (settings.namingDurationSeconds && settings.namingDurationSeconds >= 10 && settings.namingDurationSeconds <= 60) {
+      match.namingTimeRemainingSeconds = settings.namingDurationSeconds;
+    }
+
+    if (settings.maxPlayers && settings.maxPlayers >= 2 && settings.maxPlayers <= 16) {
+      match.maxPlayers = settings.maxPlayers;
+    }
+
     return match;
   }
 

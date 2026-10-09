@@ -56,6 +56,16 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
       }
     });
 
+    socket.on('lobby:update_settings', (settings: any) => {
+      const info = socketPlayerMap.get(socket.id);
+      if (!info) return;
+
+      const updated = matchManager.updateLobbySettings(info.matchId, info.playerId, settings);
+      if (updated) {
+        io.to(info.matchId).emit('match:state', updated);
+      }
+    });
+
     socket.on('lobby:start', () => {
       const info = socketPlayerMap.get(socket.id);
       if (!info) return;

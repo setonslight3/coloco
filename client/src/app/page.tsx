@@ -17,9 +17,11 @@ import {
   Dices,
   Crown,
   CheckCircle2,
-  Clock
+  Clock,
+  Settings
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo';
+import { LobbySettingsModal } from '../components/LobbySettingsModal';
 
 const PAINTER_NAMES = [
   'Picasso', 'DaVinci', 'Monet', 'VanGogh', 'Rembrandt',
@@ -39,6 +41,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Initialize player identity
   useEffect(() => {
@@ -124,6 +127,16 @@ export default function Home() {
     navigator.clipboard.writeText(activeMatch.lobbyCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveSettings = (settings: {
+    mode: GameMode;
+    challengeId: string;
+    durationSeconds: number;
+    namingDurationSeconds: number;
+    maxPlayers: number;
+  }) => {
+    socket.emit('lobby:update_settings', settings);
   };
 
   return (
@@ -328,22 +341,54 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Selected Challenge Overview */}
-          <div className="w-full bg-slate-50 dark:bg-navy-800/60 border border-slate-200/80 dark:border-navy-700 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 block">
-                Selected Challenge
-              </span>
-              <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm sm:text-base truncate">
-                {activeMatch.challenge.title}
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                {activeMatch.challenge.description}
-              </p>
+          {/* Selected Challenge Overview & Settings */}
+          <div className="w-full bg-slate-50 dark:bg-navy-800/60 border border-slate-200/80 dark:border-navy-700 rounded-2xl p-4 mb-6">
+            <div className="flex items-start justify-between gap-3 mb-2.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                    Selected Challenge
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-500 text-white">
+                    {activeMatch.mode}
+                  </span>
+                </div>
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm sm:text-base truncate">
+                  {activeMatch.challenge.title}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                  {activeMatch.challenge.description}
+                </p>
+              </div>
+
+              {activeMatch.players[playerId]?.isHost && (
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-600 dark:text-sky-300 font-bold text-xs shadow-xs transition-all flex-shrink-0"
+                  title="Configure Lobby Settings"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Edit Settings</span>
+                </button>
+              )}
             </div>
-            <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-sky-500 text-white flex-shrink-0">
-              {activeMatch.mode}
-            </span>
+
+            {/* Match Rules Quick Badges */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-navy-700/60 text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1 bg-white dark:bg-navy-700/80 px-2 py-0.5 rounded-lg border border-slate-200/60 dark:border-navy-600">
+                <Clock className="w-3 h-3 text-sky-500" />
+                Draw: {activeMatch.challenge.durationSeconds}s
+              </span>
+              <span className="flex items-center gap-1 bg-white dark:bg-navy-700/80 px-2 py-0.5 rounded-lg border border-slate-200/60 dark:border-navy-600">
+                <Clock className="w-3 h-3 text-amber-500" />
+                Naming: {activeMatch.namingTimeRemainingSeconds || 20}s
+              </span>
+              <span className="flex items-center gap-1 bg-white dark:bg-navy-700/80 px-2 py-0.5 rounded-lg border border-slate-200/60 dark:border-navy-600">
+                <Users className="w-3 h-3 text-indigo-500" />
+                Cap: {activeMatch.maxPlayers || 8} painters
+              </span>
+            </div>
           </div>
 
           {/* Connected Painters Roster */}
@@ -433,6 +478,15 @@ export default function Home() {
               </button>
             )}
           </div>
+
+          {/* Lobby Settings Modal for Host */}
+          {isSettingsOpen && activeMatch.players[playerId]?.isHost && (
+            <LobbySettingsModal
+              match={activeMatch}
+              onSave={handleSaveSettings}
+              onClose={() => setIsSettingsOpen(false)}
+            />
+          )}
         </div>
       )}
     </div>
