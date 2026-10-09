@@ -56,22 +56,33 @@ export default function Home() {
 
   const effectiveMode: GameMode = mainCategory === 'cooperative' ? 'cooperative' : subArtStyle;
 
-  // Initialize player identity
+  // Initialize player identity (per-tab unique identity so mobile multi-tab testing works seamlessly)
   useEffect(() => {
     let pid = sessionStorage.getItem('coloco_player_id');
-    if (!pid) {
+    // If window.name is empty or does not match pid, this is a fresh tab instance!
+    if (!pid || (typeof window !== 'undefined' && !window.name)) {
       pid = 'usr_' + Math.random().toString(36).substring(2, 9);
       sessionStorage.setItem('coloco_player_id', pid);
+      if (typeof window !== 'undefined') {
+        window.name = pid;
+      }
+      const randomBase = PAINTER_NAMES[Math.floor(Math.random() * PAINTER_NAMES.length)];
+      const freshName = `${randomBase}_${Math.floor(10 + Math.random() * 90)}`;
+      sessionStorage.setItem('coloco_username', freshName);
+      setUsername(freshName);
+    } else {
+      if (typeof window !== 'undefined') {
+        window.name = pid;
+      }
+      let savedName = sessionStorage.getItem('coloco_username');
+      if (!savedName) {
+        const randomBase = PAINTER_NAMES[Math.floor(Math.random() * PAINTER_NAMES.length)];
+        savedName = `${randomBase}_${Math.floor(10 + Math.random() * 90)}`;
+        sessionStorage.setItem('coloco_username', savedName);
+      }
+      setUsername(savedName);
     }
     setPlayerId(pid);
-
-    let savedName = sessionStorage.getItem('coloco_username');
-    if (!savedName) {
-      const randomBase = PAINTER_NAMES[Math.floor(Math.random() * PAINTER_NAMES.length)];
-      savedName = `${randomBase}_${Math.floor(10 + Math.random() * 90)}`;
-      sessionStorage.setItem('coloco_username', savedName);
-    }
-    setUsername(savedName);
 
     const handleMatchState = (match: MatchState) => {
       setActiveMatch(match);

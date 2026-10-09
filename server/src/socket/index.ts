@@ -39,9 +39,11 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
         match.players[playerId] = player;
       }
 
-      // 2. Ensure player has a team assigned:
+      // 2. Ensure player has a team assigned (2 players always on coop_team):
+      const isCoop = match.mode === 'cooperative' || Object.keys(match.players).length <= 2 || Boolean(match.teams.coop_team);
+
       if (!player.teamId) {
-        if (match.mode === 'cooperative') {
+        if (isCoop) {
           if (!match.teams.coop_team) {
             match.teams.coop_team = {
               id: 'coop_team',
@@ -57,7 +59,6 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
           if (!match.teams.coop_team.playerIds.includes(playerId)) {
             match.teams.coop_team.playerIds.push(playerId);
           }
-          player.territoryIndex = match.teams.coop_team.playerIds.indexOf(playerId);
         } else {
           // Competitive: assign to smaller team
           const team1 = match.teams.team1;
@@ -70,12 +71,25 @@ export function setupSocketHandlers(io: Server, matchManager: MatchManager, judg
             if (!match.teams[chosenTeamId].playerIds.includes(playerId)) {
               match.teams[chosenTeamId].playerIds.push(playerId);
             }
-            player.territoryIndex = match.teams[chosenTeamId].playerIds.indexOf(playerId);
           }
         }
       }
 
-      // 3. Ensure territory boundaries exist
+      // 3. Ensure player has a unique, non-overlapping territoryIndex on their team:
+      if (player.territoryIndex === undefined && player.teamId && match.teams[player.teamId]) {
+        const team = match.teams[player.teamId];
+        const usedIndices = team.playerIds
+          .filter(id => id !== playerId && match.players[id]?.territoryIndex !== undefined)
+          .map(id => match.players[id].territoryIndex!);
+
+        let nextIndex = 0;
+        while (usedIndices.includes(nextIndex)) {
+          nextIndex++;
+        }
+        player.territoryIndex = nextIndex;
+      }
+
+      // 4. Ensure territory boundaries exist
       if (!match.territories || match.territories.length === 0) {
         const totalInTeam = player.teamId && match.teams[player.teamId] ? match.teams[player.teamId].playerIds.length : 2;
         match.territories = generateTerritoryBoundaries(Math.max(2, totalInTeam));

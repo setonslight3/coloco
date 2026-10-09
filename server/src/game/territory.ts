@@ -89,7 +89,7 @@ export function validateStrokeTerritory(
 export function generateTerritoryBoundaries(totalPlayers: number): TerritoryBoundary[] {
   const colors = ['#38bdf8', '#fb7185', '#34d399', '#fbbf24']; // ColoCo palette
 
-  if (totalPlayers === 2) {
+  if (totalPlayers <= 2) {
     const dividerPoints: { x: number; y: number }[] = [];
     const steps = 40;
     for (let i = 0; i <= steps; i++) {

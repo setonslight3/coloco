@@ -49,8 +49,17 @@ export default function GamePage() {
   const [externalDeafenToggleCount, setExternalDeafenToggleCount] = useState(0);
 
   useEffect(() => {
-    const pid = sessionStorage.getItem('coloco_player_id') || '';
-    const uname = sessionStorage.getItem('coloco_username') || '';
+    let pid = sessionStorage.getItem('coloco_player_id') || '';
+    if (!pid || (typeof window !== 'undefined' && !window.name)) {
+      pid = 'usr_' + Math.random().toString(36).substring(2, 9);
+      sessionStorage.setItem('coloco_player_id', pid);
+      if (typeof window !== 'undefined') {
+        window.name = pid;
+      }
+    } else if (typeof window !== 'undefined') {
+      window.name = pid;
+    }
+    const uname = sessionStorage.getItem('coloco_username') || `Painter_${pid.substring(4, 8)}`;
     setPlayerId(pid);
 
     if (matchId && pid) {
@@ -190,12 +199,6 @@ export default function GamePage() {
   }
 
   let myPlayer = match.players[playerId];
-  if (!myPlayer) {
-    const pList = Object.values(match.players);
-    if (pList.length > 0) {
-      myPlayer = pList.find((p) => p.id === playerId) || pList[0];
-    }
-  }
 
   let myTeam = myPlayer?.teamId ? match.teams[myPlayer.teamId] : null;
   if (!myTeam) {
@@ -208,6 +211,27 @@ export default function GamePage() {
     if (!myTeam) {
       myTeam = Object.values(match.teams)[0] || null;
     }
+  }
+
+  // If myPlayer wasn't resolved by exact id, match appropriately within myTeam:
+  if (!myPlayer && myTeam) {
+    const matchedPid = myTeam.playerIds.find((p) => p === playerId);
+    if (matchedPid && match.players[matchedPid]) {
+      myPlayer = match.players[matchedPid];
+    } else {
+      const allPlayers = Object.values(match.players);
+      myPlayer = allPlayers.find((p) => p.id === playerId) || allPlayers[0];
+    }
+  }
+
+  // Calculate my explicit, non-overlapping territory index:
+  let effectiveTerritoryIndex = myPlayer?.territoryIndex;
+  if (effectiveTerritoryIndex === undefined && myTeam) {
+    const idx = myTeam.playerIds.indexOf(playerId);
+    effectiveTerritoryIndex = idx >= 0 ? idx : 0;
+  }
+  if (effectiveTerritoryIndex === undefined) {
+    effectiveTerritoryIndex = 0;
   }
 
   const isMyLocked = myPlayer?.isDone || match.phase === 'revealing' || match.phase === 'verdict';
@@ -346,7 +370,7 @@ export default function GamePage() {
               {myTeam?.name || 'Your Team'}
             </h2>
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-              Zone #{((myPlayer?.territoryIndex ?? 0) + 1)}
+              Zone #{(effectiveTerritoryIndex + 1)}
             </span>
           </div>
         </div>
@@ -366,8 +390,8 @@ export default function GamePage() {
               socket={socket}
               matchId={matchId}
               teamId={myTeam.id}
-              myPlayerId={playerId}
-              teammateIds={myTeam.playerIds.filter(pid => pid !== playerId)}
+              myPlayerId={myPlayer?.id || playerId}
+              teammateIds={myTeam.playerIds.filter(pid => pid !== (myPlayer?.id || playerId))}
               isVoiceActive={match.phase === 'playing'}
               onVoiceStateChange={setMyVoiceState}
               peerVoiceStates={peerVoiceStates}
@@ -409,7 +433,7 @@ export default function GamePage() {
               strokes={myTeam.strokes}
               onDrawStroke={handleDrawStroke}
               onClearTerritory={handleClearTerritory}
-              myTerritoryIndex={myPlayer?.territoryIndex}
+              myTerritoryIndex={effectiveTerritoryIndex}
               territories={match.territories}
               isLocked={isMyLocked}
               challenge={match.challenge}

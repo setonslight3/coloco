@@ -472,8 +472,11 @@ export class MatchManager {
     // Shuffle players randomly (Fisher-Yates)
     const shuffled = [...playerList].sort(() => Math.random() - 0.5);
 
-    if (match.mode === 'cooperative') {
-      // COOPERATIVE FRIENDLY MODE: All players are on 1 united team painting on the same canvas!
+    // If cooperative mode OR if only 2 players are present:
+    // 2 players ALWAYS play as teammates together on one canvas (no 1v1)!
+    const isCoop = match.mode === 'cooperative' || shuffled.length <= 2;
+
+    if (isCoop) {
       match.teams = {
         coop_team: {
           id: 'coop_team',
@@ -492,9 +495,9 @@ export class MatchManager {
         match.players[p.id].territoryIndex = idx;
       });
 
-      match.territories = generateTerritoryBoundaries(shuffled.length);
+      match.territories = generateTerritoryBoundaries(Math.max(2, shuffled.length));
     } else {
-      // COMPETITIVE MODES: 2 balanced opponent teams
+      // 4 or more players in competitive mode: 2 balanced opponent teams (2v2, etc.)
       match.teams = {
         team1: {
           id: 'team1',
@@ -520,13 +523,13 @@ export class MatchManager {
         const targetTeamId = idx % 2 === 0 ? 'team1' : 'team2';
         match.teams[targetTeamId].playerIds.push(p.id);
         match.players[p.id].teamId = targetTeamId;
-        // Index within team determines territory
+        // Index within team determines distinct territory (0, 1, etc.)
         match.players[p.id].territoryIndex = match.teams[targetTeamId].playerIds.length - 1;
       });
 
       // Calculate max players per team to determine territory partition
       const maxPerTeam = Math.max(...Object.values(match.teams).map(t => t.playerIds.length));
-      match.territories = generateTerritoryBoundaries(maxPerTeam);
+      match.territories = generateTerritoryBoundaries(Math.max(2, maxPerTeam));
     }
 
     // Transition to NAMING phase
